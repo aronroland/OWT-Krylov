@@ -54,12 +54,12 @@ The comparison baseline is SpecWave, not an empty OWT repository.
 | External repository pattern | SpecWave already provides | OWT-Krylov position |
 |---|---|---|
 | PETSc `Vec`/`Mat`/KSP/PC breadth | Native block-vectorized solvers plus a full-system PETSc binding | Native block path is primary; PETSc is an optional adapter and correctness oracle |
-| hypre ParCSR, ILU, and AMG | Owned/ghost sparse graph, block-Jacobi ILU(0), and a two-level aggregation prototype | Preserve local optimized ILU; distributed coarse correction or hypre adapter is the key gap |
+| hypre ParCSR, ILU, and AMG | Owned/ghost sparse graph, block-Jacobi ILU(0), and a two-level aggregation prototype | Local optimized ILU plus cached overlap and a sparse PETSc coarse backend are now present; hypre remains an optional future backend |
 | Trilinos package separation | Equivalent responsibilities exist in `Exchange`, solver, ILU, multigrid, ordering, and repartition code but are coupled to TRITON | OWT extracts those boundaries without converting the hot block layout |
 | Ginkgo executor/factory API | Templates, strong types, contiguous block views, and native CPU kernels | Use zero-cost concepts and explicit support matrices; avoid virtual hot-path dispatch |
 | DUNE owner/overlap/copy vocabulary | Owned nodes precede ghosts; neighbor plans exchange directly into ghost storage | OWT formalizes this as `DistributedLayout`, `BlockVector`, and `MpiHaloExchange` |
 | MFEM mesh/true-DOF boundary | SpecWave directly couples mesh adjacency, decomposition, and solver assembly | OWT consumes ownership and adjacency products without owning mesh geometry |
-| AMGX distributed GPU blocks | SpecWave has CPU SIMD block kernels and mixed-precision BiCGSTAB | Keep the node-block contract and add GPU execution later |
+| AMGX distributed GPU blocks | SpecWave has CPU SIMD block kernels and mixed-precision BiCGSTAB | The node-block contract now has OpenMP Target execution; CUDA-specific integration remains optional |
 | Kokkos rank-local kernels | SpecWave has AVX kernels below an MPI decomposition layer | Keep distribution in OWT; Kokkos remains an optional local backend |
 
 SpecWave's recorded Limon table reports 57.6 seconds for PETSc BiCGSTAB+SOR
@@ -281,13 +281,9 @@ or Kokkos.
 
 ## Actionable sequence
 
-1. Connect the port to SpecWave through a matrix-free operator adapter.
-2. Use the implemented same-problem native/PETSc fixture as the contract, then
-   reproduce it on the SpecWave Limon partition with independent true residuals.
-3. Preserve and benchmark the fused block layout, direct halo types, SIMD, and
-   batched reductions independently.
-4. Benchmark the implemented depth-one RAS and distributed coarse-correction
-   seam; add a scalable external/sparse coarse backend where replicated LU
-   ceases to be appropriate.
-5. Evaluate hypre, Ginkgo, Kokkos, and GPU adapters only where they do not force
-   layout conversion in the native hot path.
+1. Run the implemented non-mutating Limon contract on target systems and archive
+   only metadata/results, never local manuscript observations.
+2. Benchmark the fused borrowed block layout, cached depth-N RAS, and sparse
+   PETSc coarse backend under strong scaling.
+3. Evaluate hypre, Ginkgo, Kokkos, and device-specific GPU adapters only where
+   they do not force layout conversion in the native hot path.

@@ -53,9 +53,9 @@ Reviewed SpecWave revision: `acb6865c05124ffef2a35be420d15cf3cd0ad7ae`.
 | Residual replacement | `solve_pipelined_rr` and true-residual drift checks | Extracted as a configurable policy with verified true residual |
 | Accurate/reproducible arithmetic | `CompensatedSum` and double scalar reductions in mixed variants | Compensated and mixed reductions ported; bitwise reproducible MPI reduction remains a separate mode |
 | Preconditioner lifecycle | `ILU0.hpp` already separates pattern setup, factorization, and application | Ported as block-Jacobi ILU(0); general lifecycle no longer depends on wave arrays |
-| One-level Schwarz | GMRES/BiCGSTAB SSOR updates owned nodes and ignores ghost rows | Zero-overlap baseline retained; OWT now imports depth-one equations and applies genuine restricted additive Schwarz with ILU(0) |
-| Two-level DD | `Multigrid.hpp` contains aggregation and a local coarse solve | V/W/F cycles ported; OWT adds a composable distributed subdomain-constant coarse correction with replicated dense coarse LU |
-| Block/GPU structure | All spectral bins at a node are contiguous and processed together | Generalized to arbitrary node blocks with SIMD; GPU backend remains future work |
+| One-level Schwarz | GMRES/BiCGSTAB SSOR updates owned nodes and ignores ghost rows | Zero-overlap retained; cached arbitrary-depth equation import and genuine RAS-ILU(0) are implemented |
+| Two-level DD | `Multigrid.hpp` contains aggregation and a local coarse solve | V/W/F cycles, inspectable replicated coarse LU, and a scalable sparse PETSc coarse backend are implemented |
+| Block/GPU structure | All spectral bins at a node are contiguous and processed together | Generalized to arbitrary node blocks with SIMD and an OpenMP Target execution policy |
 | Pattern reuse | Mesh adjacency, sparse offsets, ILU pattern, and optional assembled-term caches persist across solves | OWT separates structural setup from value updates and PETSc assembly |
 | Warm starts | Native solution arrays and PETSc use nonzero initial guesses | Preserved as normal solver input; learned predictors remain optional |
 | Runtime selection | NML selects 22 solver IDs and `Timings.hpp` records execution | Exact ID compatibility matrix and structured `SolverResult` now exist |
@@ -218,11 +218,10 @@ The review supports the following minimum contracts:
   convergence reason, breakdown detail, and setup/solve timing.
 - `Monitor`: per-iteration observations without coupling the solver to logging.
 
-The port now provides restarted GMRES, FGMRES, the SpecWave BiCGSTAB family,
-IDR(s), stationary iterations, local ILU(0), local SSOR, genuine depth-one RAS,
-the existing aggregation family, and a distributed coarse-space composition
-point. The next coarse-level requirement is scalability: replace or complement
-the replicated dense solve for large communicator sizes.
+The port now provides restarted GMRES, FGMRES, harmonic-Ritz GCRO-DR, the
+SpecWave BiCGSTAB family, IDR(s), stationary iterations, local ILU(0), local
+SSOR, arbitrary-depth cached RAS, the aggregation family, and both inspectable
+dense and scalable sparse distributed coarse backends.
 
 ## Verification implications
 
@@ -257,14 +256,10 @@ new scalable coarse-space algorithm.
 
 ## Development order after the port
 
-1. Build the SpecWave matrix-free operator adapter without changing node-block
-   layout or halo ownership.
-2. Reproduce the Limon native/PETSc comparison with recorded compiler, MPI,
-   partition, tolerance, and true residual.
-3. Add partitioned regression problems beyond the two-rank contract test.
-4. Quantify the new distributed coarse correction under strong scaling, then
-   add a sparse/external coarse backend before replicated dense LU dominates.
-5. Add low-synchronization GMRES and accelerator backends as separate,
-   benchmarked milestones.
-6. Treat learned warm starts or preconditioners as optional consumers of the
+1. Record the implemented SpecWave/Limon comparison on target machines with
+   matched residuals and complete environment metadata.
+2. Quantify arbitrary-depth RAS and the sparse coarse backend under strong scaling.
+3. Measure OpenMP Target with device-resident production-size node blocks before
+   selecting a CUDA/HIP/SYCL-specific memory backend.
+4. Treat learned warm starts or preconditioners as optional consumers of the
    stable operator, graph, and telemetry contracts.

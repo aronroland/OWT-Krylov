@@ -11,5 +11,13 @@ if(@OWT_KRYLOV_ENABLE_PETSC@)
     pkg_check_modules(PETSC REQUIRED IMPORTED_TARGET PETSc)
 endif()
 
+if(@OWT_KRYLOV_ENABLE_LAPACK@)
+    find_dependency(LAPACK REQUIRED)
+endif()
+
+if(@OWT_KRYLOV_ENABLE_OPENMP_TARGET@)
+    find_dependency(OpenMP REQUIRED COMPONENTS CXX)
+endif()
+
 include("${CMAKE_CURRENT_LIST_DIR}/OWTKrylovTargets.cmake")
 check_required_components(OWTKrylov)

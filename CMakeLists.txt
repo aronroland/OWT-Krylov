@@ -19,6 +19,8 @@ target_include_directories(
 
 option(OWT_KRYLOV_ENABLE_MPI "Enable MPI reductions and halo exchange" OFF)
 option(OWT_KRYLOV_ENABLE_PETSC "Enable the optional PETSc adapter" OFF)
+option(OWT_KRYLOV_ENABLE_LAPACK "Enable harmonic-Ritz GCRO-DR extraction" OFF)
+option(OWT_KRYLOV_ENABLE_OPENMP_TARGET "Enable OpenMP Target execution policy" OFF)
 option(OWT_KRYLOV_BUILD_TESTS "Build OWT-Krylov tests" ON)
 option(OWT_KRYLOV_BUILD_BENCHMARKS "Build OWT-Krylov benchmark drivers" OFF)
 
@@ -36,6 +38,19 @@ if(OWT_KRYLOV_ENABLE_PETSC)
     pkg_check_modules(PETSC REQUIRED IMPORTED_TARGET PETSc)
     target_link_libraries(owt_krylov INTERFACE PkgConfig::PETSC)
     target_compile_definitions(owt_krylov INTERFACE OWT_KRYLOV_ENABLE_PETSC=1)
+endif()
+
+if(OWT_KRYLOV_ENABLE_LAPACK)
+    find_package(LAPACK REQUIRED)
+    target_link_libraries(owt_krylov INTERFACE LAPACK::LAPACK)
+    target_compile_definitions(owt_krylov INTERFACE OWT_KRYLOV_ENABLE_LAPACK=1)
+endif()
+
+if(OWT_KRYLOV_ENABLE_OPENMP_TARGET)
+    find_package(OpenMP REQUIRED COMPONENTS CXX)
+    target_link_libraries(owt_krylov INTERFACE OpenMP::OpenMP_CXX)
+    target_compile_definitions(
+        owt_krylov INTERFACE OWT_KRYLOV_ENABLE_OPENMP_TARGET=1)
 endif()
 
 if(OWT_KRYLOV_BUILD_TESTS)

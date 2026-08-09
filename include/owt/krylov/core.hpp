@@ -435,6 +435,81 @@ private:
     std::size_t allocation_epochs_ = 0;
 };
 
+/** Last unrotated Arnoldi relation produced by FGMRES. */
+template<std::floating_point T>
+class ArnoldiSnapshot {
+public:
+    void begin_cycle(const BlockVector<T>& layout, std::size_t maximum_columns)
+    {
+        maximum_columns_ = maximum_columns;
+        columns_ = 0;
+        hessenberg_.assign((maximum_columns + 1) * maximum_columns, T(0));
+        if (preconditioned_basis_.size() < maximum_columns
+            || (!preconditioned_basis_.empty()
+                && !preconditioned_basis_.front().same_layout(layout))) {
+            preconditioned_basis_.clear();
+            preconditioned_basis_.reserve(maximum_columns);
+            for (std::size_t i = 0; i < maximum_columns; ++i) {
+                preconditioned_basis_.push_back(layout.clone_layout());
+            }
+        }
+    }
+
+    void record_column(std::size_t column, std::span<const T> values)
+    {
+        if (column >= maximum_columns_ || values.size() != column + 2) {
+            throw std::invalid_argument("invalid Arnoldi snapshot column");
+        }
+        for (std::size_t row = 0; row < values.size(); ++row) {
+            hessenberg_[column * (maximum_columns_ + 1) + row] = values[row];
+        }
+    }
+
+    void finish_cycle(std::span<const BlockVector<T>> basis,
+                      std::size_t columns)
+    {
+        if (columns > maximum_columns_ || basis.size() < columns) {
+            throw std::invalid_argument("invalid Arnoldi snapshot basis");
+        }
+        columns_ = columns;
+        for (std::size_t column = 0; column < columns; ++column) {
+            std::copy(basis[column].owned().begin(), basis[column].owned().end(),
+                      preconditioned_basis_[column].owned().begin());
+        }
+    }
+
+    void clear() noexcept
+    {
+        columns_ = 0;
+        maximum_columns_ = 0;
+        hessenberg_.clear();
+        preconditioned_basis_.clear();
+    }
+
+    [[nodiscard]] std::size_t columns() const noexcept { return columns_; }
+    [[nodiscard]] T h(std::size_t row, std::size_t column) const
+    {
+        if (column >= columns_ || row > columns_) {
+            throw std::out_of_range("Arnoldi snapshot entry");
+        }
+        return hessenberg_.at(column * (maximum_columns_ + 1) + row);
+    }
+    [[nodiscard]] const BlockVector<T>& preconditioned_basis(
+        std::size_t column) const
+    {
+        if (column >= columns_) {
+            throw std::out_of_range("Arnoldi snapshot basis");
+        }
+        return preconditioned_basis_[column];
+    }
+
+private:
+    std::size_t maximum_columns_ = 0;
+    std::size_t columns_ = 0;
+    std::vector<T> hessenberg_;
+    std::vector<BlockVector<T>> preconditioned_basis_;
+};
+
 template<std::floating_point T>
 [[nodiscard]] inline bool valid_options(const SolverOptions<T>& options)
 {

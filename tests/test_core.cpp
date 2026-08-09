@@ -125,6 +125,54 @@ void test_zero_copy_views()
             "operator copied an lvalue matrix");
 }
 
+void test_split_zero_copy_matrix_view()
+{
+    using namespace owt::krylov;
+    std::vector<std::size_t> offsets{0, 1, 2};
+    std::vector<std::size_t> columns{1, 2};
+    std::vector<double> diagonal{4, 5, 6, 7};
+    std::vector<double> off_diagonal{-1, -2, -3, -4};
+    SplitBlockCsrMatrixView matrix(
+        2, 1, 2, std::span<const std::size_t>(offsets),
+        std::span<const std::size_t>(columns), std::span<double>(diagonal),
+        std::span<double>(off_diagonal));
+
+    require(!matrix.owns_memory(), "split matrix unexpectedly owns storage");
+    require(matrix.interior_rows().size() == 1
+                && matrix.boundary_rows().size() == 1,
+            "split matrix classified interior/boundary rows incorrectly");
+
+    BlockVector<double> input(2, 1, 2);
+    input.node(0)[0] = 1;
+    input.node(0)[1] = 2;
+    input.node(1)[0] = 3;
+    input.node(1)[1] = 4;
+    input.node(2)[0] = 5;
+    input.node(2)[1] = 6;
+    BlockVector<double> output = input.clone_layout();
+    matrix.apply(input, output);
+    require(output.node(0)[0] == 1 && output.node(0)[1] == 2
+                && output.node(1)[0] == 3 && output.node(1)[1] == 4,
+            "split matrix application is incorrect");
+
+#ifdef OWT_KRYLOV_ENABLE_OPENMP_TARGET
+    BlockVector<double> target_output = input.clone_layout();
+    OpenMPTargetExecutionPolicy target_execution;
+    target_execution.apply(matrix, input, target_output);
+    require(target_output.node(0)[0] == output.node(0)[0]
+                && target_output.node(0)[1] == output.node(0)[1]
+                && target_output.node(1)[0] == output.node(1)[0]
+                && target_output.node(1)[1] == output.node(1)[1],
+            "OpenMP Target split-CSR result differs from the host kernel");
+#endif
+
+    diagonal[0] = 8;
+    off_diagonal[0] = -2;
+    matrix.apply(input, output);
+    require(output.node(0)[0] == 2,
+            "split matrix did not observe an in-place numeric update");
+}
+
 void test_float_mixed_precision_solver()
 {
     using namespace owt::krylov;
@@ -255,6 +303,16 @@ void test_krylov_solvers_on_block_system()
     BlockVector<double> operator_input = exact;
     operator_view.apply(operator_input, rhs);
 
+#ifdef OWT_KRYLOV_ENABLE_OPENMP_TARGET
+    BlockVector<double> target_rhs = exact.clone_layout();
+    OpenMPTargetExecutionPolicy target_execution;
+    target_execution.apply(matrix, exact, target_rhs);
+    for (std::size_t i = 0; i < rhs.owned_size(); ++i) {
+        require(std::abs(target_rhs.data()[i] - rhs.data()[i]) < 1e-13,
+                "OpenMP Target CSR result differs from the host kernel");
+    }
+#endif
+
     SolverOptions<double> options;
     options.relative_tolerance = 1e-12;
     options.convergence_check_interval = 1;
@@ -360,6 +418,33 @@ void test_krylov_solvers_on_block_system()
         options, jacobi_preconditioner, SerialReduction<double>{}, false);
     require(recycled_second.converged() && recycled_second.iterations == 0,
             "recycle projection did not solve a related collinear system");
+
+#ifdef OWT_KRYLOV_ENABLE_LAPACK
+    RecycleSpace<double> gcrodr_space(2);
+    ArnoldiSnapshot<double> harmonic_snapshot;
+    BlockVector<double> gcrodr_first_solution = exact.clone_layout();
+    const auto gcrodr_first = gcrodr(
+        operator_view, rhs, gcrodr_first_solution, gcrodr_space, options,
+        jacobi_preconditioner, SerialReduction<double>{},
+        static_cast<SolverWorkspace<double>*>(nullptr),
+        &harmonic_snapshot);
+    require(gcrodr_first.converged() && gcrodr_space.size() == 2
+                && harmonic_snapshot.columns() > 0,
+            "GCRO-DR did not retain harmonic Ritz vectors");
+
+    BlockVector<double> harmonic_related_exact = exact;
+    harmonic_related_exact.node(0)[0] += 0.25;
+    harmonic_related_exact.node(2)[1] -= 0.5;
+    BlockVector<double> harmonic_related_rhs = exact.clone_layout();
+    BlockVector<double> harmonic_related_input = harmonic_related_exact;
+    operator_view.apply(harmonic_related_input, harmonic_related_rhs);
+    BlockVector<double> gcrodr_second_solution = exact.clone_layout();
+    const auto gcrodr_second = gcrodr(
+        operator_view, harmonic_related_rhs, gcrodr_second_solution,
+        gcrodr_space, options, jacobi_preconditioner);
+    require(gcrodr_second.converged() && gcrodr_space.size() == 2,
+            "GCRO-DR failed on a related repeated system");
+#endif
 
     SolverWorkspace<double> gmres_workspace;
     BlockVector<double> reusable_solution = exact.clone_layout();
@@ -611,6 +696,7 @@ int main()
         test_owned_only_reduction();
         test_dense_block_csr();
         test_zero_copy_views();
+        test_split_zero_copy_matrix_view();
         test_float_mixed_precision_solver();
         test_unstructured_orderings();
         test_numeric_preconditioner_updates();

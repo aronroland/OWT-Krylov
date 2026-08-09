@@ -203,6 +203,19 @@ void run_petsc_test(MPI_Comm communicator)
             "PETSc adapter first component is inaccurate");
     require(std::abs(solution.node(0)[1] - static_cast<double>(2 * (rank + 1))) < 1e-10,
             "PETSc adapter second component is inaccurate");
+
+    PetscCoarseOptions coarse_options;
+    coarse_options.pc_type = PCJACOBI;
+    coarse_options.relative_tolerance = 1e-12;
+    PetscSubdomainCoarseCorrection coarse(
+        communicator, layout, matrix, coarse_options);
+    BlockVector<double> coarse_correction = rhs.clone_layout();
+    coarse.apply(rhs, coarse_correction);
+    require(coarse.local_nonzeros() == 4 && coarse.numeric_updates() == 1,
+            "distributed sparse coarse lifecycle is incorrect");
+    require(std::abs(coarse_correction.node(0)[0]
+                     - static_cast<double>(rank + 1)) < 1e-10,
+            "distributed sparse coarse correction is inaccurate");
 }
 #endif
 

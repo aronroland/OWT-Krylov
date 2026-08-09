@@ -21,21 +21,24 @@ Status date: 2026-08-09
 10. Exercise serial, two-rank, and four-rank correctness plus an unstructured
     CSV benchmark fixture and a same-problem native/PETSc distributed fixture.
 
-## Next implementation sequence
+## Completed continuation
 
-1. Build the zero-copy SpecWave matrix-free adapter and reproduce Limon with
-   recorded compiler, MPI, partition, block size, stopping rule, and true
-   residual.
-2. Run native OWT and PETSc on the identical distributed problem; report setup,
-   update, solve, communication, and memory costs separately.
-3. Generalize overlap construction beyond depth one and cache its communication
-   pattern for numeric-only updates.
-4. Add a scalable distributed sparse coarse backend (initially PETSc or hypre)
-   while retaining the inspectable replicated baseline.
-5. Add harmonic-Ritz candidate selection if GCRO-DR is required; the current
-   recycled FGMRES must not be relabeled as GCRO-DR.
-6. Add accelerator memory/execution policies only after CPU layout benchmarks
-   establish where conversion-free native kernels retain their advantage.
+1. Added `SplitBlockCsrMatrixView` and the compiled SpecWave
+   `OWTKrylovSpecWaveSolver`: coefficient arrays and `VA` are borrowed; topology,
+   halo datatypes, RHS ghost extension, and Krylov storage are cached.
+2. Added `solver_type=22`, a non-mutating `--solver` override, a Limon runner,
+   and setup/update/solve/true-residual telemetry for OWT and PETSc paths.
+3. Added arbitrary-depth `DistributedOverlapPlan`, cached numeric row refresh,
+   direct owner residual gathers, and cached depth-N RAS-ILU(0).
+4. Added `PetscSubdomainCoarseCorrection`, whose local coarse storage follows
+   aggregate-neighbor degree instead of replicated rank-count-squared storage.
+5. Added flexible-Arnoldi snapshots and LAPACK-backed harmonic-Ritz GCRO-DR,
+   including real treatment of complex conjugate invariant directions.
+6. Added host/OpenMP Target execution policies for assembled and split CSR.
+
+The remaining work is evidence generation on target machines, not an unbuilt
+roadmap item: record Limon runs, GPU-resident performance, and large-rank coarse
+scaling before making corresponding performance claims.
 
 ## Claim gates
 

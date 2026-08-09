@@ -13,8 +13,8 @@ per unstructured-grid node.
 
 - contiguous `BlockVector<T>` storage with owned nodes followed by ghosts;
 - non-owning vector and matrix views for zero-copy application integration;
-- component-diagonal block CSR for SpecWave-style fused fields, plus true dense
-  BSR for locally coupled node degrees of freedom;
+- component-diagonal block CSR, a borrowed split diagonal/edge view matching
+  SpecWave exactly, plus true dense BSR for locally coupled node degrees of freedom;
 - fused block-CSR kernels with AVX-512, AVX2, ARM NEON, and scalar paths;
 - zero-copy MPI halo plans using reusable derived datatypes;
 - Hilbert, RCM, approximate-minimum-degree, and nested-dissection node orderings;
@@ -24,7 +24,8 @@ per unstructured-grid node.
 - Jacobi, Chebyshev-SRJ, Gauss-Seidel, AsyncGS, and Anderson-Jacobi;
 - restarted GMRES and FGMRES with robust two-sync, adaptive, and exact
   one-synchronization orthogonalization policies;
-- augmented/recycled FGMRES with an explicit caller-managed `U`/`A*U` space;
+- augmented/recycled FGMRES and optional LAPACK-backed GCRO-DR with true
+  harmonic-Ritz candidate extraction;
 - standard BiCGSTAB;
 - fused/nonblocking full-system BiCGSTAB;
 - the separate 15-vector PETSc/Cools communication-hiding BiCGSTAB recurrence;
@@ -32,17 +33,20 @@ per unstructured-grid node.
 - IDR(s), with IDR(1) using its mathematically equivalent robust BiCGSTAB path;
 - Jacobi, zero-overlap local SSOR, and block-Jacobi ILU(0), with symbolic setup
   retained across numeric coefficient updates;
-- automatic MPI import of depth-one overlap equations and genuine restricted
-  additive Schwarz with local ILU(0);
-- a composable distributed piecewise-constant coarse correction and
-  coarse-then-local two-level preconditioner;
+- cached arbitrary-depth MPI overlap discovery, direct deep-residual gathering,
+  and restricted additive Schwarz with local ILU(0);
+- a composable distributed piecewise-constant coarse correction, an optional
+  sparse PETSc coarse backend, and coarse-then-local two-level composition;
 - two-level aggregation V-, W-, and full-multigrid cycles with Jacobi,
   red-black, or Chebyshev smoothing;
 - an optional PETSc MPIAIJ/KSP adapter with independent true-residual checking;
+- host and OpenMP Target execution policies for ordinary and split block CSR;
 - reusable solver workspaces for GMRES and all BiCGSTAB recurrence families;
 - typed breakdown reasons, optional solve timing, reduction/application counts,
   and a rank-ordered deterministic MPI verification reduction;
-- an exact compatibility enumeration for SpecWave solver IDs `0` through `21`.
+- an exact compatibility enumeration for SpecWave solver IDs `0` through `21`;
+- a compiled SpecWave adapter (`solver_type=22`) that borrows `VA`, diagonal,
+  edge coefficients, and the existing owned/ghost decomposition directly.
 
 The detailed mapping is in
 [SpecWave port matrix](docs/SPECWAVE_PORT_MATRIX.md).
@@ -71,6 +75,14 @@ PETSc must use the same MPI implementation as the compiler and MPI target:
 cmake -S . -B build-petsc \
   -DOWT_KRYLOV_ENABLE_MPI=ON \
   -DOWT_KRYLOV_ENABLE_PETSC=ON
+```
+
+GCRO-DR and OpenMP Target are explicit optional features:
+
+```bash
+cmake -S . -B build-advanced \
+  -DOWT_KRYLOV_ENABLE_LAPACK=ON \
+  -DOWT_KRYLOV_ENABLE_OPENMP_TARGET=ON
 ```
 
 Install and consume the header-only package with:
@@ -107,6 +119,8 @@ partitioned problem and runs native OWT and, when enabled, PETSc on the same
 matrix, partition, initial guess, unpreconditioned stopping norm, and verified
 residual. The PETSc adapter uses exact diagonal/off-diagonal AIJ preallocation;
 its structural setup and numeric update are reported separately from solve time.
+The controlled application-level contract and non-mutating runner are described
+in [the Limon benchmark document](docs/LIMON_BENCHMARK.md).
 
 ## Minimal use
 
@@ -132,17 +146,14 @@ For MPI, use `MpiHaloExchange`, `OverlappedDistributedBlockOperator`, and
 `MpiReduction`. OWT does not initialize or finalize MPI or PETSc; runtime
 ownership remains with the application.
 
-## Current limits and next evidence threshold
+## Claim boundary
 
-The new subdomain-constant coarse operator is distributed in assembly and
-application, but its dense LU is replicated and therefore targets modest rank
-counts. A scalable backend such as hypre/PETSc or a distributed sparse coarse
-solve remains necessary at large process counts. The automatic overlap builder
-currently constructs depth one. Recycled FGMRES retains caller candidates or
-the previous converged correction; harmonic-Ritz GCRO-DR selection is not yet
-implemented. Accelerator execution and bitwise partition-independent reductions
-also remain future work.
+The replicated dense coarse solver remains useful only as an inspectable small-
+rank baseline; production scale should select `PetscSubdomainCoarseCorrection`.
+OpenMP Target is an implemented portability backend, but no GPU speed claim is
+made without device-resident workload measurements. Fixed-rank-order reduction
+is deterministic for a fixed partition, not bitwise partition independent.
 
-Most importantly, the Limon workload must be reproduced through a zero-copy
-SpecWave operator adapter, with identical partitions and independent true
-residuals, before OWT makes a measured native-over-PETSc performance claim.
+The SpecWave adapter and non-mutating Limon protocol are implemented. OWT makes
+no new application-level native-over-PETSc timing claim until a recorded run has
+zero exit codes and matched independently verified residuals.

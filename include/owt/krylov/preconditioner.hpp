@@ -24,9 +24,15 @@ struct IdentityPreconditioner {
 template<std::floating_point T>
 class JacobiPreconditioner {
 public:
-    template<std::integral Index>
+    template<class Matrix>
+        requires requires(const Matrix& matrix) {
+            { matrix.owned_nodes() } -> std::convertible_to<std::size_t>;
+            { matrix.ghost_nodes() } -> std::convertible_to<std::size_t>;
+            { matrix.block_size() } -> std::convertible_to<std::size_t>;
+            { matrix.diagonal() } -> std::same_as<std::vector<T>>;
+        }
     explicit JacobiPreconditioner(
-        const BlockCsrMatrix<T, Index>& matrix,
+        const Matrix& matrix,
         T minimum_diagonal = T(64) * std::numeric_limits<T>::epsilon())
         : owned_nodes_(matrix.owned_nodes())
         , ghost_nodes_(matrix.ghost_nodes())
@@ -38,36 +44,27 @@ public:
     }
 
     /** Refresh only numeric values while retaining all allocated storage. */
-    template<std::integral Index>
-    void update_values(const BlockCsrMatrix<T, Index>& matrix)
+    template<class Matrix>
+        requires requires(const Matrix& matrix) {
+            { matrix.owned_nodes() } -> std::convertible_to<std::size_t>;
+            { matrix.ghost_nodes() } -> std::convertible_to<std::size_t>;
+            { matrix.block_size() } -> std::convertible_to<std::size_t>;
+            { matrix.diagonal() } -> std::same_as<std::vector<T>>;
+        }
+    void update_values(const Matrix& matrix)
     {
         check_matrix_layout(matrix);
-        for (std::size_t row = 0; row < owned_nodes_; ++row) {
-            bool diagonal_found = false;
-            for (std::size_t entry = static_cast<std::size_t>(
-                     matrix.row_offsets()[row]);
-                 entry < static_cast<std::size_t>(matrix.row_offsets()[row + 1]);
-                 ++entry) {
-                if (static_cast<std::size_t>(matrix.column_indices()[entry]) != row) {
-                    continue;
-                }
-                const auto diagonal = matrix.entry_values(entry);
-                for (std::size_t component = 0; component < block_size_;
-                     ++component) {
-                    const T value = diagonal[component];
-                    if (!std::isfinite(value)
-                        || std::abs(value) <= minimum_diagonal_) {
-                        throw std::invalid_argument(
-                            "Jacobi preconditioner has a singular diagonal");
-                    }
-                    inverse_diagonal_[row * block_size_ + component] = T(1) / value;
-                }
-                diagonal_found = true;
-                break;
+        const std::vector<T> diagonal = matrix.diagonal();
+        if (diagonal.size() != inverse_diagonal_.size()) {
+            throw std::invalid_argument("Jacobi diagonal size mismatch");
+        }
+        for (std::size_t i = 0; i < diagonal.size(); ++i) {
+            const T value = diagonal[i];
+            if (!std::isfinite(value) || std::abs(value) <= minimum_diagonal_) {
+                throw std::invalid_argument(
+                    "Jacobi preconditioner has a singular diagonal");
             }
-            if (!diagonal_found) {
-                throw std::invalid_argument("Jacobi preconditioner row has no diagonal");
-            }
+            inverse_diagonal_[i] = T(1) / value;
         }
         ++numeric_updates_;
     }
@@ -87,8 +84,8 @@ public:
     }
 
 private:
-    template<std::integral Index>
-    void check_matrix_layout(const BlockCsrMatrix<T, Index>& matrix) const
+    template<class Matrix>
+    void check_matrix_layout(const Matrix& matrix) const
     {
         if (matrix.owned_nodes() != owned_nodes_
             || matrix.ghost_nodes() != ghost_nodes_
@@ -113,6 +110,10 @@ private:
     T minimum_diagonal_;
     std::size_t numeric_updates_ = 0;
 };
+
+template<std::floating_point T, std::integral Index>
+JacobiPreconditioner(const BlockCsrMatrix<T, Index>&, T = T(0))
+    -> JacobiPreconditioner<T>;
 
 /**
  * Zero-overlap rank-local SSOR. Off-rank/ghost entries are deliberately

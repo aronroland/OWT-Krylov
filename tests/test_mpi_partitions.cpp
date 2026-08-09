@@ -117,6 +117,30 @@ void run_partition_test(MPI_Comm communicator)
     require(ras_result.converged(),
             "multi-rank depth-one RAS-GMRES did not converge");
 
+    DistributedOverlapPlan<double> depth_two_plan(
+        communicator, layout, matrix, 2);
+    const std::size_t expected_overlap_nodes = rank_count == 2
+        ? 2U
+        : (rank == 0 || rank + 1 == rank_count ? 3U
+                                                : std::min<std::size_t>(
+                                                      4U,
+                                                      static_cast<std::size_t>(
+                                                          rank_count)));
+    require(depth_two_plan.subdomain_nodes() == expected_overlap_nodes,
+            "depth-two overlap discovered the wrong graph neighborhood");
+    CachedRestrictedAdditiveSchwarzIlu0<double> cached_ras(
+        rhs, depth_two_plan);
+    BlockVector<double> cached_ras_solution = exact.clone_layout();
+    const auto cached_ras_result = gmres(
+        linear_operator, rhs, cached_ras_solution, options, cached_ras,
+        MpiReduction<double>(communicator));
+    require(cached_ras_result.converged(),
+            "multi-rank cached depth-two RAS-GMRES did not converge");
+    const std::size_t update_count = depth_two_plan.numeric_updates();
+    cached_ras.update_values(matrix);
+    require(depth_two_plan.numeric_updates() == update_count + 1,
+            "depth-two overlap did not use its cached numeric update path");
+
     SubdomainConstantCoarseCorrection coarse(communicator, layout, matrix);
     BlockVector<double> coarse_correction = exact.clone_layout();
     coarse.apply(rhs, coarse_correction);

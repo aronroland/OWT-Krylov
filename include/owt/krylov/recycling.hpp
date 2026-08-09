@@ -20,7 +20,6 @@ namespace owt::krylov {
  * vectors globally orthonormal.  Candidate selection is deliberately separate
  * from storage: recycled_fgmres adds the converged solution correction, while
  * applications may add more physically meaningful deflation vectors directly.
- * This is augmented/recycled FGMRES, not harmonic-Ritz GCRO-DR extraction.
  */
 template<std::floating_point T>
 class RecycleSpace {
@@ -286,7 +285,8 @@ template<std::floating_point T,
     Preconditioner&& preconditioner = Preconditioner{},
     Reduction reduction = {},
     bool update_recycle_space = true,
-    SolverWorkspace<T>* workspace = nullptr)
+    SolverWorkspace<T>* workspace = nullptr,
+    ArnoldiSnapshot<T>* arnoldi_snapshot = nullptr)
 {
     SolverResult<T> projection_telemetry;
     BlockVector<T> initial_solution = solution;
@@ -313,7 +313,7 @@ template<std::floating_point T,
             cached_image, cache_ready);
     SolverResult<T> result = fgmres(
         projected_operator, rhs, solution, options, projected_preconditioner,
-        reduction, workspace);
+        reduction, workspace, arnoldi_snapshot);
     // Each cached projected-operator application counted by FGMRES corresponds
     // to the underlying application performed immediately beforehand.
     result.operator_applications += projection_telemetry.operator_applications;

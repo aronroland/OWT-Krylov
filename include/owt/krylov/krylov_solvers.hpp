@@ -106,11 +106,15 @@ template<std::floating_point T,
     const SolverOptions<T>& options = {},
     Preconditioner&& preconditioner = Preconditioner{},
     Reduction reduction = {},
-    SolverWorkspace<T>* supplied_workspace = nullptr)
+    SolverWorkspace<T>* supplied_workspace = nullptr,
+    ArnoldiSnapshot<T>* arnoldi_snapshot = nullptr)
 {
     SolverResult<T> result;
     detail::ScopedSolverTimer timer(result, options.collect_timings);
     if (detail::invalid_problem(rhs, solution, options) || options.restart == 0) {
+        if (arnoldi_snapshot != nullptr) {
+            arnoldi_snapshot->clear();
+        }
         return result;
     }
 
@@ -147,6 +151,9 @@ template<std::floating_point T,
     result.initial_residual_norm = initial_norm;
     detail::set_residual_result(result, initial_norm, initial_norm, rhs_norm);
     if (initial_norm <= threshold) {
+        if (arnoldi_snapshot != nullptr) {
+            arnoldi_snapshot->clear();
+        }
         result.status = SolverStatus::converged;
         return result;
     }
@@ -168,6 +175,9 @@ template<std::floating_point T,
     };
 
     while (result.iterations < options.maximum_iterations) {
+        if (arnoldi_snapshot != nullptr) {
+            arnoldi_snapshot->begin_cycle(rhs, restart);
+        }
         const T beta = detail::norm(reduction, residual, result);
         for (std::size_t i = 0; i < rhs.owned_size(); ++i) {
             basis[0].data()[i] = residual.data()[i] / beta;
@@ -254,6 +264,14 @@ template<std::floating_point T,
                 arnoldi_breakdown = true;
             }
 
+            if (arnoldi_snapshot != nullptr) {
+                arnoldi_snapshot->record_column(
+                    columns,
+                    std::span<const T>(hessenberg.data()
+                                           + columns * (restart + 1),
+                                       columns + 2));
+            }
+
             for (std::size_t row = 0; row < columns; ++row) {
                 const T first = cosine[row] * h(row, columns)
                     + sine[row] * h(row + 1, columns);
@@ -285,6 +303,10 @@ template<std::floating_point T,
                 ++result.iterations;
                 break;
             }
+        }
+
+        if (arnoldi_snapshot != nullptr) {
+            arnoldi_snapshot->finish_cycle(preconditioned_basis, columns);
         }
 
         std::fill(local_orthogonalization.begin(),

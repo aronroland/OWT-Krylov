@@ -33,6 +33,7 @@ distributed block architecture is independent of that prototype.
 | 19 | aggregation W-cycle | `AggregationMultigrid`, W | Ported two-level cycle |
 | 20 | full multigrid | `AggregationMultigrid`, full | Ported two-level FMG initialization and polishing |
 | 21 | `solve_ilu0_pipelined` | `pipelined_bicgstab` plus ILU(0) | Ported normal three-reduction recurrence |
+| 22 | OWT integration path | `OWTKrylovSpecWaveSolver` plus borrowed split CSR | Added to SpecWave; cached topology/halo/workspace and independently verified true residual |
 
 SpecWave's optional `AAJ_Solver` is ported as `anderson_jacobi`; it is not a
 separate numeric legacy ID.
@@ -44,7 +45,7 @@ separate numeric legacy ID.
 | `Array3D<NodeID,SigID,DirID,T>` | `BlockVector<T>` | Block size is no longer tied to spectral coordinates; application memory can be wrapped without copying |
 | owned `np`, ghosts `ng`, augmented `npa` | `DistributedLayout` and `BlockVector` | Ownership is explicit and MPI lifecycle is external |
 | neighbor MPI derived datatypes | `MpiHaloExchange` | Reusable zero-copy plan with begin/end handle |
-| `NCONN`, `CONN`, `ip2NNZ`, diagonal/off-diagonal arrays | `BlockCsrMatrix` | Generic local adjacency with one coefficient per component and zero-copy array views; this is not dense BSR |
+| `NCONN`, `CONN`, `ip2NNZ`, diagonal/off-diagonal arrays | `SplitBlockCsrMatrixView` | Exact borrowed application layout; topology is cached once and numeric arrays are never repacked |
 | AVX-512 dense-bin helpers | `simd::fused_multiply_add` and `simd::axpy` | Portable fallback retained |
 | Hilbert, RCM, AMD, nested-dissection ordering | reusable ordering functions | Geometry is required only for Hilbert; graph methods consume block CSR |
 | hard-coded `MPI_Allreduce`/`MPI_Iallreduce` | reduction policies | Serial/MPI/mixed precision and asynchronous batches share solver code |
@@ -72,13 +73,15 @@ The current tests establish:
   methods, ILU(0), local SSOR, and all two-level cycle forms have direct tests;
 - ghost entries do not contribute to owned reductions;
 - two- and four-rank derived-datatype halo exchanges transfer complete node blocks;
-- automatic depth-one row import, restricted additive Schwarz, and the
+- automatic depth-one and depth-two row import, cached arbitrary-depth RAS, and the
   distributed subdomain-constant coarse correction are exercised across
   partitions;
 - distributed GMRES solves the same partitioned system;
-- the optional PETSc adapter assembles and solves that system on two ranks and
-  computes an independent true residual.
+- the optional PETSc adapters assemble the full and sparse coarse systems on two
+  ranks and compute an independent true residual;
+- harmonic-Ritz GCRO-DR is exercised across related systems;
+- OpenMP Target kernels are compared directly with host CSR results.
 
-The next evidence threshold is a SpecWave application adapter and the recorded
-Limon workload. Until that is run, OWT has a complete solver-family port but not
-a demonstrated reproduction of SpecWave's reported native-over-PETSc timing.
+The SpecWave application adapter and non-mutating Limon runner now exist. The
+next evidence threshold is a recorded target-machine run; until then OWT has a
+complete integration path but does not claim a new reproduced Limon speedup.
