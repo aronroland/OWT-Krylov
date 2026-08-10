@@ -2,9 +2,11 @@
 
 Status date: 2026-08-09
 
-## Completed in the first consolidation pass
+## Implemented library components
 
-1. Port all SpecWave solver IDs and preserve the distinct BiCGSTAB recurrences.
+1. Provide compatibility labels for the SpecWave solver IDs and preserve the
+   distinct implemented BiCGSTAB recurrence families. A label is not a claim of
+   source equivalence; see `SPECWAVE_PORT_MATRIX.md`.
 2. Make vectors, component-block CSR, operators, and preconditioners borrowable
    without hidden application-data copies.
 3. Reuse Krylov storage across GMRES and the 9-/16-vector BiCGSTAB families.
@@ -21,13 +23,14 @@ Status date: 2026-08-09
 10. Exercise serial, two-rank, and four-rank correctness plus an unstructured
     CSV benchmark fixture and a same-problem native/PETSc distributed fixture.
 
-## Completed continuation
+## Current Triton integration
 
-1. Added `SplitBlockCsrMatrixView` and the compiled SpecWave
-   `OWTKrylovSpecWaveSolver`: coefficient arrays and `VA` are borrowed; topology,
-   halo datatypes, RHS ghost extension, and Krylov storage are cached.
-2. Added `solver_type=22`, a non-mutating `--solver` override, a Limon runner,
-   and setup/update/solve/true-residual telemetry for OWT and PETSc paths.
+1. Added `SplitBlockCsrMatrixView`; Triton's adapter borrows coefficient arrays
+   and `VA`, while topology, halo datatypes, and Krylov storage are cached.
+2. Triton exposes IDs 0--30 through the OWT adapter, including the stationary
+   sigma-line methods, PETSc shell path, asynchronous GS, two-level multigrid,
+   and `solver_type=22` AsyncPipeStable. Types 23--30 remain explicit OWT
+   extensions beyond the reviewed legacy selector set.
 3. Added arbitrary-depth `DistributedOverlapPlan`, cached numeric row refresh,
    direct owner residual gathers, and cached depth-N RAS-ILU(0).
 4. Added `PetscSubdomainCoarseCorrection`, whose local coarse storage follows
@@ -36,9 +39,11 @@ Status date: 2026-08-09
    including real treatment of complex conjugate invariant directions.
 6. Added host/OpenMP Target execution policies for assembled and split CSR.
 
-The remaining work is evidence generation on target machines, not an unbuilt
-roadmap item: record Limon runs, GPU-resident performance, and large-rank coarse
-scaling before making corresponding performance claims.
+The remaining work is primarily broader evidence: IDR(2) and IDR(4) pass the
+one-step A34 application test but lack full-horizon results, type 2 SRJ is
+integrated but unstable on the nonsymmetric A34 operator, the Limon protocol
+has not produced an archived complete current result, and GPU-resident and
+large-rank coarse scaling are unmeasured.
 
 ## Claim gates
 

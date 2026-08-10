@@ -90,11 +90,19 @@ public:
         BlockVector<T> residual = rhs.clone_layout();
         BlockVector<T> work = rhs.clone_layout();
         const T rhs_norm = detail::norm(reduction, rhs, result);
+        if (!std::isfinite(rhs_norm)) {
+            detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+            return result;
+        }
         const T threshold = convergence_threshold(rhs_norm, solver_options);
         detail::true_residual(fine_operator, rhs, solution, residual, work, result);
         T norm_value = detail::norm(reduction, residual, result);
         result.initial_residual_norm = norm_value;
         detail::set_residual_result(result, norm_value, norm_value, rhs_norm);
+        if (!std::isfinite(norm_value)) {
+            detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+            return result;
+        }
         if (norm_value <= threshold) {
             result.status = SolverStatus::converged;
             return result;
@@ -103,10 +111,31 @@ public:
         auto smooth_fine = [&](std::size_t steps) {
             for (std::size_t step = 0; step < steps; ++step) {
                 if (options_.smoother == MultigridSmoother::red_black_gauss_seidel) {
-                    // Applying once refreshes ghosts before the two local colors.
-                    detail::apply_operator(fine_operator, solution, work, result);
-                    gauss_seidel_rows(*fine_matrix_, rhs, solution, fine_red_);
-                    gauss_seidel_rows(*fine_matrix_, rhs, solution, fine_black_);
+                    // The application operator may contain same-node spectral
+                    // and constraint couplings which are intentionally absent
+                    // from the component-diagonal geographic matrix used to
+                    // construct the coarse graph.  Recompute the *complete*
+                    // residual before each color and apply only the diagonal
+                    // correction on that color.  The previous matrix-only GS
+                    // update had the wrong fixed point whenever such terms
+                    // were present.
+                    auto update_color = [&](const auto& rows) {
+                        detail::apply_operator(fine_operator, solution,
+                                               work, result);
+                        const std::size_t block_size = rhs.block_size();
+                        for (const std::size_t row : rows) {
+                            const std::size_t offset = row * block_size;
+                            for (std::size_t component = 0;
+                                 component < block_size; ++component) {
+                                const std::size_t index = offset + component;
+                                solution.data()[index] +=
+                                    fine_inverse_diagonal_[index]
+                                    * (rhs.data()[index] - work.data()[index]);
+                            }
+                        }
+                    };
+                    update_color(fine_red_);
+                    update_color(fine_black_);
                 } else {
                     detail::apply_operator(fine_operator, solution, work, result);
                     const T weight = smoother_weight(step);
@@ -154,6 +183,11 @@ public:
                                   residual, work, result);
             norm_value = detail::norm(reduction, residual, result);
             detail::set_residual_result(result, norm_value, norm_value, rhs_norm);
+            if (!std::isfinite(norm_value)) {
+                detail::mark_breakdown(
+                    result, BreakdownReason::non_finite_scalar);
+                return result;
+            }
             if (norm_value <= threshold) {
                 result.status = SolverStatus::converged;
                 return result;

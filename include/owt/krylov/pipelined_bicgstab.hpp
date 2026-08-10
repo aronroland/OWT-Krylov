@@ -79,6 +79,16 @@ template<std::floating_point T,
     T rho = global_rho[0];
     T alpha = T(1);
     T omega = T(1);
+    auto restart_recurrence = [&]() {
+        copy_owned(residual, shadow);
+        copy_owned(residual, search);
+        local_rho[0] = reduction.local_dot(shadow, residual);
+        reduction.sum(local_rho, global_rho);
+        ++result.global_reductions;
+        rho = global_rho[0];
+        alpha = T(1);
+        omega = T(1);
+    };
 
     for (std::size_t iteration = 1; iteration <= options.maximum_iterations; ++iteration) {
         result.iterations = iteration;
@@ -138,9 +148,12 @@ template<std::floating_point T,
                 const T true_norm = detail::norm(reduction, residual, result);
                 detail::set_residual_result(result, intermediate_norm,
                                             true_norm, rhs_norm);
-                result.status = true_norm <= threshold
-                    ? SolverStatus::converged : SolverStatus::diverged;
-                return result;
+                if (true_norm <= threshold) {
+                    result.status = SolverStatus::converged;
+                    return result;
+                }
+                restart_recurrence();
+                continue;
             }
             detail::mark_breakdown(result, BreakdownReason::omega_denominator);
             return result;
@@ -179,9 +192,12 @@ template<std::floating_point T,
                                   work, result);
             const T true_norm = detail::norm(reduction, residual, result);
             detail::set_residual_result(result, residual_norm, true_norm, rhs_norm);
-            result.status = true_norm <= threshold
-                ? SolverStatus::converged : SolverStatus::diverged;
-            return result;
+            if (true_norm <= threshold) {
+                result.status = SolverStatus::converged;
+                return result;
+            }
+            restart_recurrence();
+            continue;
         }
         if (!std::isfinite(previous_rho)
             || std::abs(previous_rho) <= scalar_tiny) {
@@ -199,12 +215,7 @@ template<std::floating_point T,
             && iteration % options.residual_replacement_interval == 0) {
             detail::true_residual(linear_operator, rhs, solution, residual,
                                   work, result);
-            copy_owned(residual, shadow);
-            copy_owned(residual, search);
-            local_rho[0] = reduction.local_dot(shadow, residual);
-            reduction.sum(local_rho, global_rho);
-            ++result.global_reductions;
-            rho = global_rho[0];
+            restart_recurrence();
         }
     }
 
@@ -276,9 +287,10 @@ template<std::floating_point T, class Operator, class Preconditioner>
 }
 
 /**
- * PETSc/Cools communication-hiding BiCGSTAB recurrence used by SpecWave legacy
- * solver type 15. It keeps the complete 15-vector recurrence and overlaps each
- * of its two batched reductions with one preconditioner/operator application.
+ * PETSc/Cools communication-hiding BiCGSTAB recurrence. It keeps the complete
+ * 15-vector recurrence and overlaps each of its two batched reductions with
+ * one preconditioner/operator application. This is an explicit OWT algorithm;
+ * production SpecWave legacy type 15 actually aliases solve_pipelined().
  */
 template<std::floating_point T,
          class Operator,
@@ -426,9 +438,17 @@ template<std::floating_point T,
                                       operator_work, result);
                 const T true_norm = detail::norm(reduction, r, result);
                 detail::set_residual_result(result, T(0), true_norm, rhs_norm);
-                result.status = true_norm <= threshold
-                    ? SolverStatus::converged : SolverStatus::diverged;
-                return result;
+                if (true_norm <= threshold) {
+                    result.status = SolverStatus::converged;
+                    return result;
+                }
+                if (!initialize_recurrence()) {
+                    detail::mark_breakdown(
+                        result, BreakdownReason::biorthogonality_loss);
+                    return result;
+                }
+                first_after_restart = true;
+                continue;
             }
             detail::mark_breakdown(
                 result, std::isfinite(global_first[1])
@@ -475,9 +495,17 @@ template<std::floating_point T,
                                   operator_work, result);
             const T true_norm = detail::norm(reduction, r, result);
             detail::set_residual_result(result, residual_norm, true_norm, rhs_norm);
-            result.status = true_norm <= threshold
-                ? SolverStatus::converged : SolverStatus::diverged;
-            return result;
+            if (true_norm <= threshold) {
+                result.status = SolverStatus::converged;
+                return result;
+            }
+            if (!initialize_recurrence()) {
+                detail::mark_breakdown(
+                    result, BreakdownReason::biorthogonality_loss);
+                return result;
+            }
+            first_after_restart = true;
+            continue;
         }
 
         if (options.residual_replacement_interval > 0

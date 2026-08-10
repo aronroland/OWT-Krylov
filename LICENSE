@@ -1,0 +1,191 @@
+OWT-KRYLOV EVALUATION LICENSE AGREEMENT
+Version 1.0, 9 August 2026
+
+Copyright (c) 2026 Aron Roland. All rights reserved.
+
+IMPORTANT: THIS SOFTWARE IS NOT OPEN-SOURCE SOFTWARE. READ THIS AGREEMENT
+CAREFULLY BEFORE ACCESSING OR USING THE SOFTWARE.
+
+By accessing, downloading, copying, compiling, modifying, or using the
+Software, you (the "Licensee") accept this Agreement. If you do not accept
+this Agreement, you must not access or use the Software.
+
+1. Definitions
+
+1.1 "Licensor" means Aron Roland.
+
+1.2 "Software" means OWT-Krylov and all source code, object code, build files,
+tests, benchmarks, documentation, examples, updates, and other materials made
+available with it by the Licensor.
+
+1.3 "Evaluation and Testing" means internal, non-production activity performed
+solely to determine the Software's functionality, performance, interoperability,
+security, or suitability for a possible licensed deployment. Evaluation and
+Testing may include compiling the Software, executing its tests and benchmarks,
+and making temporary modifications in an isolated or otherwise non-operational
+environment. It does not include use of the Software to provide an operational
+capability, perform ordinary business or mission functions, serve end users or
+third parties, process workloads on which any person or organization relies, or
+develop or operate a product or service.
+
+1.4 "Evaluation Period" means the period expressly authorized in writing by
+the Licensor or, if no period is stated, ninety (90) calendar days beginning on
+the Licensee's first access to the Software.
+
+2. Limited Evaluation License
+
+Subject to the Licensee's continuous compliance with this Agreement, the
+Licensor grants the Licensee a limited, revocable, non-exclusive,
+non-transferable, non-sublicensable, royalty-free license during the Evaluation
+Period to:
+
+(a) make a reasonable number of internal copies of the Software;
+
+(b) compile and execute the Software solely for Evaluation and Testing; and
+
+(c) modify the Software solely as reasonably necessary for Evaluation and
+Testing.
+
+Every copy and modification remains subject to this Agreement. No right is
+granted by implication, estoppel, exhaustion, or otherwise. All rights not
+expressly granted are reserved by the Licensor.
+
+3. Prohibited Uses
+
+Except with the Licensor's prior written permission under a separate license,
+the Licensee must not, directly or indirectly:
+
+(a) use the Software in production, operations, deployment, mission execution,
+command or control, decision support, safety-critical activity, or any other
+environment in which results from the Software are relied upon;
+
+(b) use the Software for any commercial purpose, internal business function
+other than Evaluation and Testing, fee-based activity, hosted service, managed
+service, software-as-a-service offering, or service bureau;
+
+(c) sell, rent, lease, sublicense, assign, transfer, publish, distribute,
+disclose, transmit, or otherwise make the Software or any modification
+available to any third party;
+
+(d) permit access to the Software by anyone other than the Licensee's employees
+and individual contractors who have a need to participate in Evaluation and
+Testing and who are bound in writing by obligations at least as protective as
+this Agreement;
+
+(e) incorporate the Software or any portion of it into another product,
+service, library, or operational system;
+
+(f) use the Software, its source code, or non-public evaluation results to
+create, train, validate, improve, or market a competing product or service;
+
+(g) publish or disclose benchmark results or comparative performance results
+concerning the Software without the Licensor's prior written permission;
+
+(h) remove, obscure, or alter any copyright, ownership, attribution, or license
+notice; or
+
+(i) continue any use after the Evaluation Period expires or this Agreement is
+terminated.
+
+4. Evaluation Records and Results
+
+The Licensee may retain internal notes and test results that do not contain or
+disclose the Software. The Licensee is not required to provide feedback. If the
+Licensee voluntarily provides feedback, suggestions, or error reports, the
+Licensee grants the Licensor a perpetual, worldwide, royalty-free,
+non-exclusive license to use and incorporate that feedback without restriction,
+provided that the Licensor does not identify the Licensee publicly without
+permission.
+
+5. Ownership
+
+The Software is licensed, not sold. The Licensor retains all title, copyright,
+patent, trade-secret, and other intellectual-property rights in and to the
+Software. The Licensee receives no ownership interest. As between the Licensor
+and the Licensee, modifications derived from or containing the Software may be
+used only under this Agreement and do not expand the Licensee's rights in the
+Software.
+
+6. Third-Party Materials
+
+Third-party software, interfaces, or materials identified in the Software are
+governed by their respective license terms. This Agreement does not grant
+rights that the Licensor does not possess and does not replace any applicable
+third-party license.
+
+7. No Support or Maintenance
+
+The Licensor has no obligation under this Agreement to provide support,
+maintenance, updates, corrections, training, documentation, or continued
+access. Any such services require a separate written agreement.
+
+8. Disclaimer of Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE" FOR EVALUATION AND TESTING
+ONLY. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR DISCLAIMS
+ALL WARRANTIES, WHETHER EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE, INCLUDING
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE,
+NON-INFRINGEMENT, ACCURACY, SECURITY, RELIABILITY, AND ERROR-FREE OR
+UNINTERRUPTED OPERATION. THE SOFTWARE HAS NOT BEEN QUALIFIED FOR PRODUCTION,
+OPERATIONAL, MISSION-CRITICAL, OR SAFETY-CRITICAL USE.
+
+9. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR WILL NOT BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, PUNITIVE, OR
+CONSEQUENTIAL DAMAGES, OR FOR ANY LOSS OF DATA, PROFITS, REVENUE, BUSINESS,
+OPPORTUNITY, GOODWILL, OR USE, ARISING FROM OR RELATED TO THE SOFTWARE OR THIS
+AGREEMENT, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. NOTHING IN THIS
+AGREEMENT EXCLUDES OR LIMITS LIABILITY THAT CANNOT LAWFULLY BE EXCLUDED OR
+LIMITED.
+
+10. Termination and Deletion
+
+This Agreement and the license granted under it terminate automatically when
+the Evaluation Period expires or when the Licensee breaches any term. The
+Licensor may also terminate the license at any time by written notice. Upon
+termination, the Licensee must immediately stop using the Software and, within
+ten (10) business days, delete or destroy all copies and modifications in its
+possession or control, except for one archival copy retained solely when
+required by law and kept inaccessible for any other purpose. Upon request, the
+Licensee must certify compliance with this section in writing. Sections 3
+through 14 survive termination to the extent necessary to give them effect.
+
+11. Compliance and Export Controls
+
+The Licensee must comply with all laws and regulations applicable to its access
+to and use of the Software, including applicable export-control, sanctions, and
+procurement laws. The Licensee must not export, re-export, transfer, or permit
+access to the Software where prohibited by law.
+
+12. United States Government End Users
+
+The Software is "commercial computer software" and its documentation is
+"commercial computer software documentation." Consistent with FAR 12.212 and
+DFARS 227.7202, any access or use by or on behalf of the United States
+Government is governed solely by this Agreement and grants only the Evaluation
+and Testing rights expressly stated here. No production, operational,
+government-purpose, unlimited-rights, or source-disclosure license is granted.
+If mandatory federal law requires terms inconsistent with this Agreement, the
+Software may not be used unless the Licensor and the responsible contracting
+authority first execute a written addendum.
+
+13. Governing Law
+
+This Agreement is governed by the laws of the Federal Republic of Germany,
+excluding its conflict-of-laws rules and the United Nations Convention on
+Contracts for the International Sale of Goods. Mandatory law applicable to a
+United States Government licensee is not displaced by this section.
+
+14. General
+
+This Agreement is the entire agreement concerning the evaluation license and
+supersedes prior statements on that subject. Any amendment, waiver, commercial
+license, production license, or extension of the Evaluation Period must be in a
+writing signed by the Licensor. A failure to enforce a provision is not a
+waiver. The Licensee may not assign this Agreement without the Licensor's prior
+written consent. If any provision is held unenforceable, it will be enforced to
+the maximum lawful extent and the remaining provisions will remain effective.
+
+For commercial, production, operational, redistribution, source, or extended
+evaluation rights, contact the Licensor at aaronroland@gmx.de.

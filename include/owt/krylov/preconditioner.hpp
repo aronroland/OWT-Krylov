@@ -335,7 +335,6 @@ public:
             }
         }
 
-        output.fill_owned(T(0));
         for (std::size_t reverse = owned_nodes_; reverse-- > 0;) {
             const std::size_t row = reverse;
             T* x = output.data() + row * block_size_;
@@ -349,10 +348,10 @@ public:
                     x[component] -= factor[component] * previous[component];
                 }
             }
-            const T* diagonal = values_.data()
-                + diagonal_positions_[row] * block_size_;
+            const T* inverse_diagonal = inverse_diagonal_.data()
+                + row * block_size_;
             for (std::size_t component = 0; component < block_size_; ++component) {
-                x[component] /= diagonal[component];
+                x[component] *= inverse_diagonal[component];
             }
         }
     }
@@ -452,6 +451,20 @@ private:
                 }
             }
         }
+        inverse_diagonal_.resize(owned_nodes_ * block_size_);
+        for (std::size_t row = 0; row < owned_nodes_; ++row) {
+            const T* diagonal = values_.data()
+                + diagonal_positions_[row] * block_size_;
+            T* inverse = inverse_diagonal_.data() + row * block_size_;
+            for (std::size_t component = 0; component < block_size_;
+                 ++component) {
+                if (!std::isfinite(diagonal[component])
+                    || std::abs(diagonal[component]) <= pivot_tolerance) {
+                    throw std::runtime_error("zero pivot in ILU(0)");
+                }
+                inverse[component] = T(1) / diagonal[component];
+            }
+        }
     }
 
     std::size_t owned_nodes_;
@@ -462,6 +475,7 @@ private:
     std::vector<std::size_t> diagonal_positions_;
     std::vector<std::size_t> source_positions_;
     std::vector<T> values_;
+    std::vector<T> inverse_diagonal_;
     mutable BlockVector<T> workspace_;
     std::size_t numeric_updates_ = 0;
 };

@@ -453,6 +453,15 @@ template<std::floating_point T,
     T alpha = T(1);
     T omega = T(1);
     bool first_iteration = true;
+    auto restart_recurrence = [&]() {
+        copy_owned(residual, shadow);
+        search.fill_owned(T(0));
+        operator_search.fill_owned(T(0));
+        rho_previous = T(1);
+        alpha = T(1);
+        omega = T(1);
+        first_iteration = true;
+    };
 
     for (std::size_t iteration = 1; iteration <= options.maximum_iterations; ++iteration) {
         result.iterations = iteration;
@@ -506,9 +515,15 @@ template<std::floating_point T,
             detail::true_residual(linear_operator, rhs, solution, residual, work, result);
             const T true_norm = detail::norm(reduction, residual, result);
             detail::set_residual_result(result, intermediate_norm, true_norm, rhs_norm);
-            result.status = true_norm <= threshold
-                ? SolverStatus::converged : SolverStatus::diverged;
-            return result;
+            if (true_norm <= threshold) {
+                result.status = SolverStatus::converged;
+                return result;
+            }
+            // The recursively updated residual can be optimistic in finite
+            // precision. Continue from the explicitly recomputed residual
+            // instead of reporting divergence at the first false crossing.
+            restart_recurrence();
+            continue;
         }
 
         detail::apply_preconditioner(preconditioner, intermediate,
@@ -556,16 +571,8 @@ template<std::floating_point T,
                     result.status = SolverStatus::converged;
                     return result;
                 }
-                if (replace_residual) {
-                    copy_owned(residual, shadow);
-                    search.fill_owned(T(0));
-                    operator_search.fill_owned(T(0));
-                    rho_previous = T(1);
-                    alpha = T(1);
-                    omega = T(1);
-                    first_iteration = true;
-                    continue;
-                }
+                restart_recurrence();
+                continue;
             } else {
                 result.recursive_residual_norm = recursive_norm;
             }

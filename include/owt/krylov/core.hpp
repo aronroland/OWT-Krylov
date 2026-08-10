@@ -133,10 +133,11 @@ template<std::floating_point T>
 class ScopedSolverTimer {
 public:
     ScopedSolverTimer(SolverResult<T>& result, bool enabled)
-        : result_(&result), enabled_(enabled)
+        : enabled_(enabled)
     {
         if (enabled_) {
-            result_->timings = std::make_shared<SolverTimings<T>>();
+            timings_ = std::make_shared<SolverTimings<T>>();
+            result.timings = timings_;
             start_ = std::chrono::steady_clock::now();
         }
     }
@@ -147,14 +148,18 @@ public:
     ~ScopedSolverTimer()
     {
         if (enabled_) {
-            result_->timings->solve_seconds = std::chrono::duration<double>(
+            // A named SolverResult may be moved into the function's return
+            // object before local destructors run.  Keep an independent
+            // shared owner rather than dereferencing the potentially
+            // moved-from result during stack unwinding.
+            timings_->solve_seconds = std::chrono::duration<double>(
                 std::chrono::steady_clock::now() - start_).count();
         }
     }
 
 private:
-    SolverResult<T>* result_;
     bool enabled_;
+    std::shared_ptr<SolverTimings<T>> timings_;
     std::chrono::steady_clock::time_point start_{};
 };
 

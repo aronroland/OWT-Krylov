@@ -43,7 +43,9 @@ validate, and extend mechanisms that already exist in SpecWave.
 
 ## SpecWave implementation crosswalk
 
-Reviewed SpecWave revision: `acb6865c05124ffef2a35be420d15cf3cd0ad7ae`.
+Reviewed SpecWave revision:
+`d9b2e44495c9ed0cb192eee016cdfa022b785fc4` on `main`. The previously
+recorded `acb6865c...` object is not resolvable in the reviewed repositories.
 
 | Literature result | Existing SpecWave mechanism | OWT extraction or remaining gap |
 |---|---|---|
@@ -58,12 +60,14 @@ Reviewed SpecWave revision: `acb6865c05124ffef2a35be420d15cf3cd0ad7ae`.
 | Block/GPU structure | All spectral bins at a node are contiguous and processed together | Generalized to arbitrary node blocks with SIMD and an OpenMP Target execution policy |
 | Pattern reuse | Mesh adjacency, sparse offsets, ILU pattern, and optional assembled-term caches persist across solves | OWT separates structural setup from value updates and PETSc assembly |
 | Warm starts | Native solution arrays and PETSc use nonzero initial guesses | Preserved as normal solver input; learned predictors remain optional |
-| Runtime selection | NML selects 22 solver IDs and `Timings.hpp` records execution | Exact ID compatibility matrix and structured `SolverResult` now exist |
+| Runtime selection | The current dispatcher contains legacy IDs through 21, with aliases and experimental gaps | Numeric compatibility is documented separately from source equivalence; Triton exposes the validated Krylov subset and explicit OWT extensions |
 | Learned graph methods | `NCONN`/`CONN` already expose the unstructured graph | Future preconditioner plugin; no claim that ML is already implemented |
 
 The local collection is missing the actual IDR(s) paper even though SpecWave has
 an IDR(s) implementation: the file named for Sonneveld and van Gijzen contains
-an unrelated paper. That is an evidence-collection defect, not an absent solver.
+an unrelated paper. The archived Limon output exercises only IDR(1). Direct
+16-rank A34 application tests now cover IDR(1), IDR(2), and IDR(4);
+repeated-system and full-horizon evidence for $s>1$ is still missing.
 
 ## Evidence synthesis
 

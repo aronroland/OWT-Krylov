@@ -75,6 +75,7 @@ design notes in the SpecWave working copy:
 - `TRITON-C/manual/technical_manual.tex`, especially the Krylov and domain
   decomposition sections
 
-The concrete review baseline is SpecWave commit
-`acb6865c05124ffef2a35be420d15cf3cd0ad7ae`, not the historical solver branch
-names alone.
+The concrete review baseline is the current SpecWave `main` revision
+`d9b2e44495c9ed0cb192eee016cdfa022b785fc4`. The previously recorded
+`acb6865c...` object is not resolvable in the SpecWave, Triton_C, or
+OWT-Krylov repositories and must not be used as evidence.

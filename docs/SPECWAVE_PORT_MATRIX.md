@@ -1,87 +1,155 @@
-# SpecWave to OWT-Krylov port matrix
+# SpecWave to OWT-Krylov implementation matrix
 
-Review and port date: 2026-08-09
+Audit date: 2026-08-10
 
-Reviewed SpecWave revision: `acb6865c05124ffef2a35be420d15cf3cd0ad7ae`
-on branch `krylov-solver-library`. The untracked SpecWave `TRITON-C/libkrylov`
-prototype was also reviewed as an earlier serial extraction, but OWT's
-distributed block architecture is independent of that prototype.
+Authoritative SpecWave source reviewed in the current checkout:
+`d9b2e44495c9ed0cb192eee016cdfa022b785fc4` on `main`.
 
-## Solver mapping
+The earlier document named revision `acb6865c...`; that object is not
+resolvable in the current SpecWave, Triton_C, or OWT-Krylov repositories. Its
+claims of a complete source-level port and complete Limon evidence are
+withdrawn. The generic `solve_specwave_native()` test proves that OWT algorithm
+families solve a small synthetic matrix. It does not prove source equivalence
+or application-level behavior for every legacy numeric ID.
 
-| Legacy ID | SpecWave implementation | OWT-Krylov implementation | Status and qualification |
+## Source and application mapping
+
+| Legacy ID | SpecWave `main` dispatch | OWT algorithm family | Triton application integration |
 |---:|---|---|---|
-| 0 | Jacobi loop in `RDschemes_implicit_V2.hpp` | `jacobi`, `SpecWaveSolver::jacobi` | Ported; generic operator and diagonal preconditioner |
-| 1 | Gauss-Seidel loop in `RDschemes_implicit_V2.hpp` | `gauss_seidel` | Ported; fused node blocks and halo policy |
-| 2 | `ChebyshevSRJ.hpp` plus implicit loop | `chebyshev_srj` | Ported with generated Chebyshev schedule |
-| 3 | `solve_pipelined_stable` | `communication_hiding_bicgstab` with compensated/mixed reduction | Ported recurrence; deterministic global reduction order is not guaranteed by MPI |
-| 4 | `solve_pipelined_rr` | communication-hiding recurrence with residual-replacement policy | Ported with verified true residual on replacement/convergence |
-| 5 | `BiCGSTAB_Solver::solve`, SSOR | `bicgstab` plus `LocalSsorPreconditioner` | Ported zero-overlap local solve |
-| 6 | `PETScFullSystemSolver` | `PetscBlockCsrSolver` | Ported as optional adapter; no global-ID all-gather; true residual checked independently |
-| 7 | `GMRES_Solver::solve`, SSOR | `gmres`/`fgmres` plus zero-overlap local SSOR | Ported; FGMRES is an added generalization |
-| 8 | Same core path as ID 5 | same as ID 5 | Preserved compatibility alias |
-| 9 | `solve_ilu0` | `bicgstab` plus `Ilu0Preconditioner` | Ported rank-local block-Jacobi ILU(0) |
-| 10 | 15-vector `solve_pipelined_mixed` | `communication_hiding_bicgstab` plus mixed-precision reduction | Ported separately from ID 12; MPI float scalars reduce through double |
-| 11 | `solve_full_system` | distributed `bicgstab` | Ported; ownership-aware global reductions are policies |
-| 12 | full-system `solve_pipelined` | `pipelined_bicgstab` | Ported normal three-reduction recurrence with exceptional happy-breakdown check |
-| 13 | full-system `solve_ilu0` | distributed `bicgstab` plus ILU(0) | Ported |
-| 14 | `IDRs_Solver` | `idrs` | Ported cyclic `dR/dX` form; IDR(1) uses equivalent BiCGSTAB recurrence |
-| 15 | PETSc/Cools-style 15-vector `solve_pipelined` | `communication_hiding_bicgstab` | Ported separately from ID 12; two batched reductions overlap preconditioner/operator work |
-| 16 | `AsyncGS_Solver` | `asynchronous_gauss_seidel` | Ported interior/boundary ordering with begin/end halo exchange |
-| 17 | aggregation V-cycle, Jacobi | `AggregationMultigrid`, V, Jacobi | Ported; coarse solve remains rank-local |
-| 18 | aggregation V-cycle, red-black GS | `AggregationMultigrid`, V, red-black | Ported; coarse solve remains rank-local |
-| 19 | aggregation W-cycle | `AggregationMultigrid`, W | Ported two-level cycle |
-| 20 | full multigrid | `AggregationMultigrid`, full | Ported two-level FMG initialization and polishing |
-| 21 | `solve_ilu0_pipelined` | `pipelined_bicgstab` plus ILU(0) | Ported normal three-reduction recurrence |
-| 22 | OWT integration path | `OWTKrylovSpecWaveSolver` plus borrowed split CSR | Added to SpecWave; cached topology/halo/workspace and independently verified true residual |
+| 0 | point Jacobi | stationary Jacobi with application-supplied sigma-line solve | integrated when OWT is enabled; native Triton fallback otherwise |
+| 1 | Gauss--Seidel | stationary GS with application-supplied sigma-line solve | integrated when OWT is enabled; native Triton fallback otherwise |
+| 2 | Chebyshev SRJ | exact SpecWave SRJ schedule with application-supplied sigma-line solve | integrated; experimental and breaks down on A34 |
+| 3 | 15-vector pipelined-stable BiCGSTAB, compensated local reductions | communication-hiding BiCGSTAB plus native-precision compensated MPI reduction | integrated |
+| 4 | 15-vector pipelined BiCGSTAB with residual replacement | communication-hiding BiCGSTAB with reliable updates | integrated; update cadence is the public check interval because the legacy hard-coded 50 failed A34 positivity |
+| 5 | BiCGSTAB plus geographic SSOR | BiCGSTAB plus geographic SSOR | integrated |
+| 6 | optional PETSc KSP | matrix-free PETSc shell plus optional OWT preconditioner | integrated; requires a precision-compatible PETSc build |
+| 7 | GMRES(30) plus geographic SSOR | restarted GMRES plus geographic SSOR | integrated |
+| 8 | same core path as 5 | alias of 5 | integrated alias |
+| 9 | BiCGSTAB plus geographic ILU(0) | BiCGSTAB plus geographic ILU(0) | integrated alias of 13 |
+| 10 | 15-vector mixed-precision pipelined BiCGSTAB | communication-hiding BiCGSTAB plus double local/global scalar reduction | integrated |
+| 11 | full-system BiCGSTAB plus geographic SSOR | BiCGSTAB plus geographic SSOR | integrated alias of 5 |
+| 12 | full-system pipelined BiCGSTAB plus geographic SSOR | pipelined BiCGSTAB plus geographic SSOR | integrated |
+| 13 | full-system BiCGSTAB plus geographic ILU(0) | BiCGSTAB plus geographic ILU(0) | integrated alias of 9 |
+| 14 | IDR(s), archived Limon evidence uses s=1 | IDR(1) via BiCGSTAB; standard IDR(s) branch for s>1 | integrated; s=1, 2, and 4 pass A34 |
+| 15 | dispatches to the same `solve_pipelined()` call as 12 | alias of 12 | integrated alias |
+| 16 | asynchronous GS | asynchronous full-operator block GS with overlapped halo exchange | integrated |
+| 17--20 | experimental multigrid variants | two-level aggregation V/Jacobi, V/two-color-defect, W, and full cycles | integrated; all four pass the A34 application test |
+| 21 | pipelined BiCGSTAB plus geographic ILU(0) | pipelined BiCGSTAB plus geographic ILU(0) | integrated |
+| 22 | AsyncPipeStable | overlapped full operator, stable pipelined BiCGSTAB, and compensated reductions | integrated |
+| 23 | no SpecWave legacy ID | GMRES plus geographic ILU(0) | OWT extension |
+| 24--27 | no SpecWave legacy IDs | BiCGSTAB, pipelined BiCGSTAB, GMRES, and communication-hiding BiCGSTAB with full phase-space SSOR | OWT extensions |
+| 28--30 | no SpecWave legacy IDs | BiCGSTAB, pipelined BiCGSTAB, and GMRES with cached depth-one RAS-ILU(0) | OWT extensions |
 
-SpecWave's optional `AAJ_Solver` is ported as `anderson_jacobi`; it is not a
-separate numeric legacy ID.
+The application operator remains in Triton. It contains the geographic matrix,
+directional and frequency couplings, current/refraction terms, characteristic
+boundary equations, dry rows, and halo exchange. OWT owns the iterative
+recurrences, reduction policies, workspaces, and reusable preconditioners.
 
-## Architectural mapping
+## Preconditioner semantics
 
-| SpecWave mechanism | OWT extraction | Important change |
-|---|---|---|
-| `Array3D<NodeID,SigID,DirID,T>` | `BlockVector<T>` | Block size is no longer tied to spectral coordinates; application memory can be wrapped without copying |
-| owned `np`, ghosts `ng`, augmented `npa` | `DistributedLayout` and `BlockVector` | Ownership is explicit and MPI lifecycle is external |
-| neighbor MPI derived datatypes | `MpiHaloExchange` | Reusable zero-copy plan with begin/end handle |
-| `NCONN`, `CONN`, `ip2NNZ`, diagonal/off-diagonal arrays | `SplitBlockCsrMatrixView` | Exact borrowed application layout; topology is cached once and numeric arrays are never repacked |
-| AVX-512 dense-bin helpers | `simd::fused_multiply_add` and `simd::axpy` | Portable fallback retained |
-| Hilbert, RCM, AMD, nested-dissection ordering | reusable ordering functions | Geometry is required only for Hilbert; graph methods consume block CSR |
-| hard-coded `MPI_Allreduce`/`MPI_Iallreduce` | reduction policies | Serial/MPI/mixed precision and asynchronous batches share solver code |
-| integer iteration return | `SolverResult` | Status, typed breakdown detail, recursive and true residuals, optional timing, application and reduction counts |
-| PETSc global all-gather map | `DistributedLayout` algebraic numbering | No per-rank `O(global nodes)` map in the adapter |
+Legacy SSOR IDs use the actual SpecWave zero-overlap construction: two
+rank-local sweeps over the geographic graph, independently for every spectral
+component. Ghost columns are excluded.
 
-## What is deliberately not copied
+OWT IDs 24--27 use a distinct full phase-space SSOR. Its triangular ordering
+includes both the geographic graph and same-node theta/sigma couplings. This is
+an enhancement, not a legacy-equivalence claim. Geographic ILU(0) remains a
+zero-overlap rank-local factorization for IDs 9, 13, 21, and 23.
 
-Refraction, frequency shifting, boundary-condition terms, wave-action
-convergence percentages, and NML parsing are application behavior. They belong
-in the SpecWave `DistributedOperator` and monitor adapters, not in the solver
-library. OWT accepts matrix-free operators, so these terms do not need to be
-flattened into the block-CSR implementation.
+OWT IDs 28--30 import one owner-equation layer, cache the symbolic import
+schedule, update numeric coefficients between solves, gather the overlap
+residual, solve local ILU(0), and restrict the correction to owned rows.
 
-MPI and PETSc initialization/finalization are also not owned by OWT. This fixes
-the lifecycle coupling in SpecWave's `DomainDecomposition` and current PETSc
-binding.
+## Reproduced A34 evidence
 
-## Evidence and remaining validation
+Release/single-precision Triton, 16 MPI ranks, one 600 s A34 step, analytical
+convergence, relative true-residual tolerance `1e-6`:
 
-The current tests establish:
+The namelist selects lagged PSI--F2, but A34 starts with an empty prognostic
+interior and therefore uses Triton's conservative first-order geographic
+predictor for this first step. These results validate the distributed OWT
+predictor equation. A separate two-step result below validates the active
+lagged PSI--F2 corrected pass.
 
-- all 21 native compatibility IDs converge on a nonsymmetric block system;
-- GMRES, BiCGSTAB, both pipelined recurrences, IDR(1)/IDR(2), stationary
-  methods, ILU(0), local SSOR, and all two-level cycle forms have direct tests;
-- ghost entries do not contribute to owned reductions;
-- two- and four-rank derived-datatype halo exchanges transfer complete node blocks;
-- automatic depth-one and depth-two row import, cached arbitrary-depth RAS, and the
-  distributed subdomain-constant coarse correction are exercised across
-  partitions;
-- distributed GMRES solves the same partitioned system;
-- the optional PETSc adapters assemble the full and sparse coarse systems on two
-  ranks and compute an independent true residual;
-- harmonic-Ritz GCRO-DR is exercised across related systems;
-- OpenMP Target kernels are compared directly with host CSR results.
+| ID | Method/preconditioner | Result | Iterations | Solve seconds | True relative residual |
+|---:|---|---|---:|---:|---:|
+| 0 | sigma-line Jacobi | pass | 710 | 19.37 | 9.58e-7 |
+| 1 | sigma-line Gauss--Seidel | pass | 280 | 5.66 | 9.90e-7 |
+| 2 | Chebyshev--SRJ sigma-line Jacobi | non-finite breakdown | 140 | -- | inf |
+| 3 | communication-hiding / geographic SSOR / compensated | pass | 402 | 53.42 | 9.73e-7 |
+| 4 | communication-hiding RR / geographic SSOR | pass | 470 | 62.01 | 8.54e-7 |
+| 5, 8, 11 | BiCGSTAB / geographic SSOR | pass | 222 | 20.62 | 9.86e-7 |
+| 6 | PETSc shell GMRES / node-block Jacobi | pass, double/1e-8 | 720 | 138.95 | 9.33e-9 |
+| 7 | GMRES / geographic SSOR | pass | 214 | 26.46 | 9.68e-7 |
+| 9, 13 | BiCGSTAB / geographic ILU(0) | pass | 140 | 13.46 | 9.82e-7 |
+| 10 | mixed communication-hiding / geographic SSOR | pass | 425 | 56.81 | 9.67e-7 |
+| 12, 15 | pipelined BiCGSTAB / geographic SSOR | pass | 133 | 12.41 | 9.34e-7 |
+| 14 (s=1) | IDR(1) / geographic SSOR | pass | 222 | 20.62 | 9.86e-7 |
+| 14 (s=2) | standard IDR(2) / geographic SSOR | pass | 243 | 13.46 | 6.44e-7 |
+| 14 (s=4) | standard IDR(4) / geographic SSOR | pass | 334 | 22.65 | 9.04e-7 |
+| 16 | asynchronous full-operator block GS | pass | 300 | 6.20 | 9.03e-7 |
+| 17 | aggregation V-cycle / Jacobi | pass | 108 | 18.85 | 9.75e-7 |
+| 18 | aggregation V-cycle / two-color defect | pass | 105 | 24.75 | 9.88e-7 |
+| 19 | aggregation W-cycle | pass | 84 | 19.56 | 9.70e-7 |
+| 20 | aggregation full cycle | pass | 108 | 18.92 | 9.68e-7 |
+| 21 | pipelined BiCGSTAB / geographic ILU(0) | pass | 138 | 13.32 | 9.84e-7 |
+| 22 | AsyncPipeStable | pass | 402 | 54.39 | 9.73e-7 |
+| 23 | GMRES / geographic ILU(0) | pass | 214 | 26.47 | 9.73e-7 |
+| 24 | BiCGSTAB / phase-space SSOR | pass | 113 | 11.99 | 9.49e-7 |
+| 25 | pipelined BiCGSTAB / phase-space SSOR | pass | 119 | 12.66 | 9.91e-7 |
+| 26 | GMRES / phase-space SSOR | pass | 211 | 27.66 | 9.80e-7 |
+| 27 | communication-hiding / phase-space SSOR | pass | 350 | 51.67 | 9.42e-7 |
+| 28 | BiCGSTAB / depth-one RAS-ILU(0) | pass | 130 | 14.79 | 7.96e-7 |
+| 29 | pipelined BiCGSTAB / depth-one RAS-ILU(0) | pass | 128 | 14.66 | 9.83e-7 |
+| 30 | GMRES / depth-one RAS-ILU(0) | pass | 211 | 28.30 | 9.72e-7 |
 
-The SpecWave application adapter and non-mutating Limon runner now exist. The
-next evidence threshold is a recorded target-machine run; until then OWT has a
-complete integration path but does not claim a new reproduced Limon speedup.
+Against the native-GS field at the matching 600 s record:
+
+| ID | max abs Hs difference | Hs RMS difference | max direction difference |
+|---:|---:|---:|---:|
+| 12 | 5.22e-5 m | 1.80e-5 m | 0.00735 deg |
+| 24 | 4.63e-5 m | 1.43e-5 m | 0.00584 deg |
+
+The phase-space preconditioner reduces ordinary BiCGSTAB from 222 to 113
+iterations and reduces meaningful post-solve negative values to roundoff. The
+communication-hiding recurrence remains slow on A34 even with the stronger
+preconditioner; it is retained for completeness, not recommended as the
+production choice.
+
+Type 2 is the exact reviewed SRJ algorithm, not a favorable fallback. Its A34
+breakdown is consistent with the SpecWave history that removed SRJ from the
+stable set: the schedules target SPD systems, while the wave-advection
+operator is strongly nonsymmetric. The PETSc row is separate because the
+installed PETSc uses double precision; its final Hs differs from the matching
+double-precision type-12 field by at most 1.18e-6 m.
+
+The 16-rank opposing-current A32 case verifies the local sigma-line operator.
+Types 0, 1, and 16 differ from the type-12 Hs field by at most 1.16e-5,
+9.12e-6, and 9.30e-6 m, respectively, while all four runs meet their requested
+true residual.
+
+For two A34 timesteps, the second step activates the bounded lagged PSI--F2
+defect. Type 1 uses 190 predictor and 90 corrected-pass iterations; type 12
+uses 115 and 52. Both corrected systems meet the 1e-6 true-residual target,
+and their final Hs fields differ by at most 7.41e-5 m (RMSE 1.04e-5 m). This
+proves that both the predictor and corrected passes dispatch through OWT;
+there is no silent legacy-sweep fallback.
+
+Type 17 provides the corresponding multigrid check. On the active second
+step it uses 70 predictor and 32 corrected-pass cycles, with true relative
+residuals 9.99e-7 and 8.48e-7. Its final Hs differs from type 12 by at most
+8.33e-5 m (RMSE 1.70e-5 m), proving that both O2 passes also retain the
+selected multigrid cycle.
+
+These timings do not establish speedup over native GS because the native
+operational stopping criterion and OWT global true-residual criterion are not
+equivalent.
+
+## Remaining evidence threshold
+
+- run full-horizon repeated-system comparisons, not only one and two steps;
+- run repeated-system and full-horizon IDR(2)/IDR(4) comparisons, not only the one-step A34 solve;
+- add a partition-sensitive test of phase-space SSOR and constrained rows;
+- reproduce and archive Limon on a tracked case. The current SpecWave `main`
+  does not track the local Limon directory, and the historical benchmark script
+  covers only a subset of IDs without an archived complete result table.

@@ -13,7 +13,14 @@
 
 namespace owt::krylov {
 
-/** Exact legacy solver IDs used by SpecWave's NML configuration. */
+/**
+ * Legacy numeric solver IDs used by SpecWave's NML configuration.
+ *
+ * The numeric labels are exact for configuration interoperability.  A mapped
+ * OWT implementation is not necessarily a source-level port of the SpecWave
+ * algorithm carrying that label; solve_specwave_native() documents the OWT
+ * equivalents selected by this compatibility layer.
+ */
 enum class SpecWaveSolver : int {
     jacobi = 0,
     gauss_seidel = 1,
@@ -37,6 +44,7 @@ enum class SpecWaveSolver : int {
     multigrid_w = 19,
     full_multigrid = 20,
     pipelined_bicgstab_ilu0 = 21,
+    async_pipe_stable = 22,
 };
 
 [[nodiscard]] constexpr std::string_view name(SpecWaveSolver solver) noexcept
@@ -62,7 +70,7 @@ enum class SpecWaveSolver : int {
         return "BiCGSTAB-Full-System-ILU0";
     case SpecWaveSolver::idrs: return "IDR(s)";
     case SpecWaveSolver::communication_hiding_bicgstab:
-        return "Communication-Hiding-BiCGSTAB";
+        return "Pipelined-BiCGSTAB-SSOR (legacy type 15 alias)";
     case SpecWaveSolver::asynchronous_gauss_seidel:
         return "Asynchronous-Gauss-Seidel";
     case SpecWaveSolver::multigrid_v_jacobi: return "Multigrid-V-Jacobi";
@@ -71,13 +79,17 @@ enum class SpecWaveSolver : int {
     case SpecWaveSolver::full_multigrid: return "Full-Multigrid";
     case SpecWaveSolver::pipelined_bicgstab_ilu0:
         return "Pipelined-BiCGSTAB-ILU0";
+    case SpecWaveSolver::async_pipe_stable: return "AsyncPipeStable";
     }
     return "unknown";
 }
 
 /**
- * Compatibility dispatcher for every native SpecWave solver ID. PETSc remains
- * an explicit optional adapter because it requires runtime and numbering state.
+ * Compatibility dispatcher from legacy SpecWave IDs to available OWT solver
+ * families and preconditioners.  This is a selection compatibility layer, not
+ * a claim of algorithmic identity with every historical SpecWave solver.
+ * PETSc remains an explicit optional adapter because it requires runtime and
+ * numbering state.
  */
 template<std::floating_point T,
          std::integral Index,
@@ -174,7 +186,11 @@ template<std::floating_point T,
     }
     case SpecWaveSolver::communication_hiding_bicgstab: {
         LocalSsorPreconditioner<T, Index> ssor(matrix, options.relaxation);
-        return communication_hiding_bicgstab(
+        // The production SpecWave dispatcher routes both legacy types 12 and
+        // 15 to solve_pipelined().  Keep the numeric compatibility contract
+        // exact; the separate 15-vector PETSc/Cools recurrence is exposed by
+        // communication_hiding_bicgstab() rather than this legacy ID.
+        return pipelined_bicgstab(
             linear_operator, rhs, solution, options, std::move(ssor),
             std::move(reduction));
     }
@@ -203,6 +219,26 @@ template<std::floating_point T,
         Ilu0Preconditioner<T, Index> ilu(matrix);
         return pipelined_bicgstab(linear_operator, rhs, solution, options,
                                   std::move(ilu), std::move(reduction));
+    }
+    case SpecWaveSolver::async_pipe_stable: {
+        LocalSsorPreconditioner<T, Index> ssor(matrix, options.relaxation);
+#ifdef OWT_KRYLOV_ENABLE_MPI
+        if constexpr (std::same_as<Reduction, MpiReduction<T>>) {
+            return communication_hiding_bicgstab(
+                linear_operator, rhs, solution, options, std::move(ssor),
+                MpiCompensatedReduction<T>(reduction.communicator()));
+        } else if constexpr (std::same_as<Reduction,
+                                          MpiCompensatedReduction<T>>) {
+            return communication_hiding_bicgstab(
+                linear_operator, rhs, solution, options, std::move(ssor),
+                std::move(reduction));
+        } else
+#endif
+        {
+            return communication_hiding_bicgstab(
+                linear_operator, rhs, solution, options, std::move(ssor),
+                CompensatedSerialReduction<T>{});
+        }
     }
     case SpecWaveSolver::petsc:
         return {};

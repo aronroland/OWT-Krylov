@@ -10,6 +10,7 @@
 #include <limits>
 #include <span>
 #include <stdexcept>
+#include <type_traits>
 #include <vector>
 
 #ifdef OWT_KRYLOV_ENABLE_MPI
@@ -20,6 +21,22 @@
 #endif
 
 namespace owt::krylov {
+
+namespace detail {
+
+template<std::floating_point T>
+[[nodiscard]] T norm_from_squared(T squared_norm) noexcept
+{
+    // Preserve NaN/Inf so solvers can report numerical breakdown.  Using
+    // std::max(0, NaN) silently returns zero on common implementations and
+    // can therefore turn a diverged iteration into false convergence.
+    if (!std::isfinite(squared_norm)) {
+        return squared_norm;
+    }
+    return std::sqrt(std::max(T(0), squared_norm));
+}
+
+} // namespace detail
 
 template<std::floating_point T>
 class SerialReduction {
@@ -33,6 +50,79 @@ public:
     }
 
     [[nodiscard]] T dot(const BlockVector<T>& lhs, const BlockVector<T>& rhs) const
+    {
+        if (!lhs.same_layout(rhs)) {
+            throw std::invalid_argument("dot layout mismatch");
+        }
+        // Independent accumulators shorten the dependency chain and allow the
+        // compiler to vectorize the production reduction. Float products are
+        // accumulated in double; for double vectors the eight partial sums
+        // substantially reduce error compared with one long scalar chain.
+        using Accumulator = std::conditional_t<
+            std::same_as<T, float>, double, T>;
+        std::array<Accumulator, 8> partial{};
+        const T* left = lhs.data();
+        const T* right = rhs.data();
+        const std::size_t size = lhs.owned_size();
+        std::size_t i = 0;
+        for (; i + partial.size() <= size; i += partial.size()) {
+            for (std::size_t lane = 0; lane < partial.size(); ++lane) {
+                partial[lane] += static_cast<Accumulator>(left[i + lane])
+                    * static_cast<Accumulator>(right[i + lane]);
+            }
+        }
+        Accumulator sum = (partial[0] + partial[1])
+            + (partial[2] + partial[3])
+            + (partial[4] + partial[5])
+            + (partial[6] + partial[7]);
+        for (; i < size; ++i) {
+            sum += static_cast<Accumulator>(left[i])
+                * static_cast<Accumulator>(right[i]);
+        }
+        return static_cast<T>(sum);
+    }
+
+    [[nodiscard]] T norm(const BlockVector<T>& vector) const
+    {
+        return detail::norm_from_squared(dot(vector, vector));
+    }
+
+    void sum(std::span<const T> local, std::span<T> global) const
+    {
+        if (local.size() != global.size()) {
+            throw std::invalid_argument("reduction batch size mismatch");
+        }
+        std::copy(local.begin(), local.end(), global.begin());
+    }
+
+    [[nodiscard]] Request begin_sum(std::span<const T> local,
+                                    std::span<T> global) const
+    {
+        sum(local, global);
+        return {};
+    }
+
+    void end(Request&) const noexcept {}
+};
+
+/**
+ * Neumaier-compensated owned-only reduction for verification and numerically
+ * delicate recurrences. Production SerialReduction deliberately uses the
+ * faster multi-accumulator implementation above.
+ */
+template<std::floating_point T>
+class CompensatedSerialReduction {
+public:
+    struct Request {};
+
+    [[nodiscard]] T local_dot(const BlockVector<T>& lhs,
+                              const BlockVector<T>& rhs) const
+    {
+        return dot(lhs, rhs);
+    }
+
+    [[nodiscard]] T dot(const BlockVector<T>& lhs,
+                        const BlockVector<T>& rhs) const
     {
         if (!lhs.same_layout(rhs)) {
             throw std::invalid_argument("dot layout mismatch");
@@ -52,7 +142,7 @@ public:
 
     [[nodiscard]] T norm(const BlockVector<T>& vector) const
     {
-        return std::sqrt(std::max(T(0), dot(vector, vector)));
+        return detail::norm_from_squared(dot(vector, vector));
     }
 
     void sum(std::span<const T> local, std::span<T> global) const
@@ -105,7 +195,7 @@ public:
 
     [[nodiscard]] T norm(const BlockVector<T>& vector) const
     {
-        return std::sqrt(std::max(T(0), dot(vector, vector)));
+        return detail::norm_from_squared(dot(vector, vector));
     }
 
     void sum(std::span<const T> local, std::span<T> global) const
@@ -168,7 +258,7 @@ public:
 
     [[nodiscard]] T norm(const BlockVector<T>& vector) const
     {
-        return std::sqrt(std::max(T(0), dot(vector, vector)));
+        return detail::norm_from_squared(dot(vector, vector));
     }
 
     void sum(std::span<const T> local, std::span<T> global) const
@@ -202,6 +292,85 @@ public:
 private:
     MPI_Comm communicator_;
     SerialReduction<T> serial_;
+};
+
+/**
+ * MPI reduction with Neumaier-compensated local dot products and native-T
+ * global reductions.  This matches the arithmetic contract of SpecWave's
+ * ``solve_pipelined_stable`` path: compensation is applied before MPI, while
+ * the communicator still reduces float scalars as MPI_FLOAT and double
+ * scalars as MPI_DOUBLE.
+ */
+template<std::floating_point T>
+class MpiCompensatedReduction {
+public:
+    struct Request {
+        MPI_Request request = MPI_REQUEST_NULL;
+    };
+
+    explicit MpiCompensatedReduction(
+        MPI_Comm communicator = MPI_COMM_WORLD)
+        : communicator_(communicator)
+    {
+    }
+
+    [[nodiscard]] T local_dot(const BlockVector<T>& lhs,
+                              const BlockVector<T>& rhs) const
+    {
+        return serial_.dot(lhs, rhs);
+    }
+
+    [[nodiscard]] T dot(const BlockVector<T>& lhs,
+                        const BlockVector<T>& rhs) const
+    {
+        const T local = local_dot(lhs, rhs);
+        T global = T(0);
+        MPI_Allreduce(&local, &global, 1, detail::mpi_type<T>(), MPI_SUM,
+                      communicator_);
+        return global;
+    }
+
+    [[nodiscard]] T norm(const BlockVector<T>& vector) const
+    {
+        return detail::norm_from_squared(dot(vector, vector));
+    }
+
+    void sum(std::span<const T> local, std::span<T> global) const
+    {
+        if (local.size() != global.size()) {
+            throw std::invalid_argument("reduction batch size mismatch");
+        }
+        MPI_Allreduce(local.data(), global.data(),
+                      static_cast<int>(local.size()), detail::mpi_type<T>(),
+                      MPI_SUM, communicator_);
+    }
+
+    [[nodiscard]] Request begin_sum(std::span<const T> local,
+                                    std::span<T> global) const
+    {
+        if (local.size() != global.size()) {
+            throw std::invalid_argument("reduction batch size mismatch");
+        }
+        Request result;
+        MPI_Iallreduce(local.data(), global.data(),
+                       static_cast<int>(local.size()), detail::mpi_type<T>(),
+                       MPI_SUM, communicator_, &result.request);
+        return result;
+    }
+
+    void end(Request& request) const
+    {
+        MPI_Wait(&request.request, MPI_STATUS_IGNORE);
+    }
+
+    [[nodiscard]] MPI_Comm communicator() const noexcept
+    {
+        return communicator_;
+    }
+
+private:
+    MPI_Comm communicator_;
+    CompensatedSerialReduction<T> serial_;
 };
 
 /**
@@ -240,7 +409,7 @@ public:
 
     [[nodiscard]] T norm(const BlockVector<T>& vector) const
     {
-        return std::sqrt(std::max(T(0), dot(vector, vector)));
+        return detail::norm_from_squared(dot(vector, vector));
     }
 
     void sum(std::span<const T> local, std::span<T> global) const
@@ -332,7 +501,7 @@ public:
 
     [[nodiscard]] T norm(const BlockVector<T>& vector) const
     {
-        return std::sqrt(std::max(T(0), dot(vector, vector)));
+        return detail::norm_from_squared(dot(vector, vector));
     }
 
     void sum(std::span<const T> local, std::span<T> global) const

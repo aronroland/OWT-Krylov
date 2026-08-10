@@ -8,12 +8,27 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <random>
 #include <utility>
 #include <vector>
 
 namespace owt::krylov {
 
 namespace detail {
+
+template<class Reduction>
+[[nodiscard]] std::uint64_t idr_partition_seed(const Reduction& reduction)
+{
+#ifdef OWT_KRYLOV_ENABLE_MPI
+    if constexpr (requires { reduction.communicator(); }) {
+        int rank = 0;
+        MPI_Comm_rank(reduction.communicator(), &rank);
+        return static_cast<std::uint64_t>(rank);
+    }
+#endif
+    (void)reduction;
+    return 0;
+}
 
 template<std::floating_point T>
 [[nodiscard]] bool solve_dense_system(std::vector<T> matrix,
@@ -68,24 +83,27 @@ bool initialize_idr_shadow(std::vector<BlockVector<T>>& shadow,
                            T tolerance,
                            std::uint64_t seed_shift = 0)
 {
-    copy_owned(residual, shadow[0]);
-    T norm_value = norm(reduction, shadow[0], result);
-    if (norm_value <= tolerance) {
-        return false;
+    // SpecWave generates a distinct deterministic shadow vector on every MPI
+    // rank.  Repeating the same local random sequence on every partition can
+    // make P^H dR rank-deficient for partition-repeated application fields.
+    // Keep the deterministic contract while including both rank and restart.
+    std::mt19937_64 generator(
+        42ULL + idr_partition_seed(reduction)
+        + seed_shift * 0x9e3779b97f4a7c15ULL);
+    std::normal_distribution<T> distribution(T(0), T(1));
+    T norm_value = T(0);
+    const std::size_t random_begin = shadow.size() == 1 ? 1 : 0;
+    if (shadow.size() == 1) {
+        copy_owned(residual, shadow[0]);
+        norm_value = norm(reduction, shadow[0], result);
+        if (norm_value <= tolerance) {
+            return false;
+        }
+        scale(T(1) / norm_value, shadow[0]);
     }
-    scale(T(1) / norm_value, shadow[0]);
-
-    for (std::size_t k = 1; k < shadow.size(); ++k) {
-        std::uint64_t state = 0x9e3779b97f4a7c15ULL
-            ^ ((k + 1 + seed_shift) * 0xbf58476d1ce4e5b9ULL);
+    for (std::size_t k = random_begin; k < shadow.size(); ++k) {
         for (std::size_t i = 0; i < residual.owned_size(); ++i) {
-            state ^= state >> 12;
-            state ^= state << 25;
-            state ^= state >> 27;
-            const std::uint64_t bits = state * 0x2545f4914f6cdd1dULL;
-            shadow[k].data()[i] = T(2)
-                * (static_cast<T>(bits >> 11)
-                   / static_cast<T>(9007199254740992.0)) - T(1);
+            shadow[k].data()[i] = distribution(generator);
         }
         for (std::size_t previous = 0; previous < k; ++previous) {
             const T projection = dot(reduction, shadow[previous], shadow[k], result);
@@ -103,8 +121,9 @@ bool initialize_idr_shadow(std::vector<BlockVector<T>>& shadow,
 } // namespace detail
 
 /**
- * IDR(s) port of SpecWave's cyclic dR/dX implementation. The operator,
- * preconditioner, and reduction policies carry halo exchange and MPI behavior.
+ * Right-preconditioned IDR(s) using the standard Sonneveld-space recurrence.
+ * The operator, preconditioner, and reduction policies carry halo exchange
+ * and MPI behavior. IDR(1) is routed through the guarded BiCGSTAB recurrence.
  */
 template<std::floating_point T,
          class Operator,
@@ -137,16 +156,15 @@ template<std::floating_point T,
     BlockVector<T> projected = rhs.clone_layout();
     BlockVector<T> preconditioned = rhs.clone_layout();
     BlockVector<T> operator_work = rhs.clone_layout();
-    BlockVector<T> saved_oldest = rhs.clone_layout();
-    std::vector<BlockVector<T>> delta_residual;
-    std::vector<BlockVector<T>> delta_solution;
+    std::vector<BlockVector<T>> basis_residual;
+    std::vector<BlockVector<T>> basis_solution;
     std::vector<BlockVector<T>> shadow;
-    delta_residual.reserve(s);
-    delta_solution.reserve(s);
+    basis_residual.reserve(s);
+    basis_solution.reserve(s);
     shadow.reserve(s);
     for (std::size_t k = 0; k < s; ++k) {
-        delta_residual.push_back(rhs.clone_layout());
-        delta_solution.push_back(rhs.clone_layout());
+        basis_residual.push_back(rhs.clone_layout());
+        basis_solution.push_back(rhs.clone_layout());
         shadow.push_back(rhs.clone_layout());
     }
 
@@ -161,182 +179,293 @@ template<std::floating_point T,
         result.status = SolverStatus::converged;
         return result;
     }
-    if (!detail::initialize_idr_shadow(shadow, residual, reduction, result,
-                                       options.breakdown_tolerance)) {
+    std::vector<T> moment_matrix(s * s, T(0));
+    std::vector<T> shadow_residual(s, T(0));
+    std::vector<T> active_matrix;
+    std::vector<T> active_rhs;
+    std::vector<T> coefficients;
+    std::size_t basis_epoch = 0;
+    std::size_t breakdown_restarts = 0;
+    T omega = T(1);
+
+    auto restart_basis = [&]() -> bool {
+        if (!detail::initialize_idr_shadow(
+                shadow, residual, reduction, result,
+                options.breakdown_tolerance, basis_epoch++)) {
+            return false;
+        }
+        std::fill(moment_matrix.begin(), moment_matrix.end(), T(0));
+        for (std::size_t k = 0; k < s; ++k) {
+            moment_matrix[k * s + k] = T(1);
+            basis_residual[k].fill_owned(T(0));
+            basis_solution[k].fill_owned(T(0));
+            shadow_residual[k] = detail::dot(
+                reduction, shadow[k], residual, result);
+        }
+        omega = T(1);
+        return true;
+    };
+    auto restart_or_fail = [&]() -> bool {
+        ++breakdown_restarts;
+        return breakdown_restarts <= 4 && restart_basis();
+    };
+    auto moment_pivot_is_small = [&](std::size_t column) -> bool {
+        T column_scale = T(0);
+        for (std::size_t row = column; row < s; ++row) {
+            column_scale = std::max(
+                column_scale,
+                std::abs(moment_matrix[row * s + column]));
+        }
+        const T pivot = moment_matrix[column * s + column];
+        const T tolerance = std::max(
+            std::numeric_limits<T>::min(),
+            options.breakdown_tolerance * column_scale);
+        return !std::isfinite(pivot) || std::abs(pivot) <= tolerance;
+    };
+    if (!restart_basis()) {
         detail::mark_breakdown(result, BreakdownReason::idr_shadow_space);
         return result;
     }
 
-    T omega = T(1);
-    for (std::size_t k = 0;
-         k < s && result.iterations < options.maximum_iterations; ++k) {
-        copy_owned(residual, projected);
-        detail::apply_preconditioner(preconditioner, projected,
-                                     preconditioned, result);
-        detail::apply_operator(linear_operator, preconditioned,
-                               operator_work, result);
-        const T numerator = detail::dot(reduction, operator_work,
-                                        projected, result);
-        const T denominator = detail::dot(reduction, operator_work,
-                                          operator_work, result);
-        if (std::abs(denominator) <= options.breakdown_tolerance) {
-            detail::mark_breakdown(result, BreakdownReason::omega_denominator);
-            return result;
-        }
-        omega = numerator / denominator;
-        copy_owned(preconditioned, delta_solution[k]);
-        scale(omega, delta_solution[k]);
-        copy_owned(operator_work, delta_residual[k]);
-        scale(-omega, delta_residual[k]);
-        axpy(T(1), delta_solution[k], solution);
-        axpy(T(1), delta_residual[k], residual);
-        ++result.iterations;
-        residual_norm = detail::norm(reduction, residual, result);
-        if (residual_norm <= threshold) {
-            detail::true_residual(linear_operator, rhs, solution, residual,
-                                  operator_work, result);
-            const T true_norm = detail::norm(reduction, residual, result);
-            detail::set_residual_result(result, residual_norm, true_norm, rhs_norm);
-            result.status = true_norm <= threshold
-                ? SolverStatus::converged : SolverStatus::diverged;
-            return result;
-        }
-    }
-
-    std::vector<T> moment_matrix(s * s, T(0));
-    std::vector<T> moment_residual(s, T(0));
-    std::vector<T> coefficients(s, T(0));
-    auto rebuild_moments = [&] {
-        for (std::size_t row = 0; row < s; ++row) {
-            moment_residual[row] = detail::dot(reduction, shadow[row],
-                                                residual, result);
-            for (std::size_t column = 0; column < s; ++column) {
-                moment_matrix[row * s + column] = detail::dot(
-                    reduction, shadow[row], delta_residual[column], result);
-            }
-        }
-    };
-    rebuild_moments();
-
-    std::size_t oldest = 0;
-    std::size_t shadow_restarts = 0;
+    bool restarted = false;
     while (result.iterations < options.maximum_iterations) {
-        for (std::size_t inner = 0;
-             inner <= s && result.iterations < options.maximum_iterations; ++inner) {
-            if (!detail::solve_dense_system(moment_matrix, moment_residual,
+        restarted = false;
+        for (std::size_t k = 0;
+             k < s && result.iterations < options.maximum_iterations; ++k) {
+            const std::size_t active = s - k;
+            active_matrix.assign(active * active, T(0));
+            active_rhs.assign(active, T(0));
+            T matrix_scale = T(0);
+            for (std::size_t row = 0; row < active; ++row) {
+                active_rhs[row] = shadow_residual[k + row];
+                for (std::size_t column = 0; column < active; ++column) {
+                    const T value = moment_matrix[
+                        (k + row) * s + (k + column)];
+                    active_matrix[row * active + column] = value;
+                    matrix_scale = std::max(matrix_scale, std::abs(value));
+                }
+            }
+            const T dense_tolerance = std::max(
+                std::numeric_limits<T>::min(),
+                T(64) * std::numeric_limits<T>::epsilon() * matrix_scale);
+            if (!detail::solve_dense_system(active_matrix, active_rhs,
                                              coefficients,
-                                             options.breakdown_tolerance)) {
-                if (++shadow_restarts > 2
-                    || !detail::initialize_idr_shadow(
-                        shadow, residual, reduction, result,
-                        options.breakdown_tolerance, shadow_restarts)) {
+                                             dense_tolerance)) {
+                if (!restart_or_fail()) {
                     detail::mark_breakdown(
                         result, BreakdownReason::idr_small_system);
                     return result;
                 }
-                // Match SpecWave's numerical restart: rebuild the dR/dX basis
-                // with fresh minimum-residual steps before reconstructing M.
-                for (std::size_t k = 0;
-                     k < s && result.iterations < options.maximum_iterations; ++k) {
-                    copy_owned(residual, projected);
-                    detail::apply_preconditioner(preconditioner, projected,
-                                                 preconditioned, result);
-                    detail::apply_operator(linear_operator, preconditioned,
-                                           operator_work, result);
-                    const T numerator = detail::dot(reduction, operator_work,
-                                                    projected, result);
-                    const T denominator = detail::dot(reduction, operator_work,
-                                                      operator_work, result);
-                    if (std::abs(denominator) <= options.breakdown_tolerance) {
-                        detail::mark_breakdown(
-                            result, BreakdownReason::omega_denominator);
-                        return result;
-                    }
-                    omega = numerator / denominator;
-                    copy_owned(preconditioned, delta_solution[k]);
-                    scale(omega, delta_solution[k]);
-                    copy_owned(operator_work, delta_residual[k]);
-                    scale(-omega, delta_residual[k]);
-                    axpy(T(1), delta_solution[k], solution);
-                    axpy(T(1), delta_residual[k], residual);
-                    ++result.iterations;
-                    residual_norm = detail::norm(reduction, residual, result);
-                    if (residual_norm <= threshold) {
-                        detail::true_residual(linear_operator, rhs, solution,
-                                              residual, operator_work, result);
-                        const T true_norm = detail::norm(reduction, residual, result);
-                        detail::set_residual_result(result, residual_norm,
-                                                    true_norm, rhs_norm);
-                        result.status = true_norm <= threshold
-                            ? SolverStatus::converged : SolverStatus::diverged;
-                        return result;
-                    }
-                }
-                rebuild_moments();
-                oldest = 0;
-                continue;
+                restarted = true;
+                break;
             }
 
+            // v = r - G_k:s c; z = omega M^-1 v + Z_k:s c.
+            // Z stores solution-space directions, so this is the exact
+            // right-preconditioned form without applying M^-1 twice.
             copy_owned(residual, projected);
-            for (std::size_t column = 0; column < s; ++column) {
-                axpy(-coefficients[column], delta_residual[column], projected);
+            for (std::size_t column = k; column < s; ++column) {
+                axpy(-coefficients[column - k], basis_residual[column],
+                     projected);
             }
             detail::apply_preconditioner(preconditioner, projected,
                                          preconditioned, result);
-            if (inner == 0) {
-                detail::apply_operator(linear_operator, preconditioned,
-                                       operator_work, result);
-                const T numerator = detail::dot(reduction, operator_work,
-                                                projected, result);
-                const T denominator = detail::dot(reduction, operator_work,
-                                                  operator_work, result);
-                if (std::abs(denominator) <= options.breakdown_tolerance) {
+            scale(omega, preconditioned);
+            for (std::size_t column = k; column < s; ++column) {
+                axpy(coefficients[column - k], basis_solution[column],
+                     preconditioned);
+            }
+            detail::apply_operator(linear_operator, preconditioned,
+                                   operator_work, result);
+
+            // Biorthogonalize the new G/Z column against completed columns.
+            for (std::size_t previous = 0; previous < k; ++previous) {
+                const T pivot = moment_matrix[previous * s + previous];
+                if (moment_pivot_is_small(previous)) {
+                    if (!restart_or_fail()) {
+                        detail::mark_breakdown(
+                            result, BreakdownReason::idr_small_system);
+                        return result;
+                    }
+                    restarted = true;
+                    break;
+                }
+                const T alpha = detail::dot(
+                    reduction, shadow[previous], operator_work, result) / pivot;
+                axpy(-alpha, basis_residual[previous], operator_work);
+                axpy(-alpha, basis_solution[previous], preconditioned);
+            }
+            if (restarted) {
+                break;
+            }
+
+            for (std::size_t row = 0; row < k; ++row) {
+                moment_matrix[row * s + k] = T(0);
+            }
+            for (std::size_t row = k; row < s; ++row) {
+                moment_matrix[row * s + k] = detail::dot(
+                    reduction, shadow[row], operator_work, result);
+            }
+            const T pivot = moment_matrix[k * s + k];
+            if (moment_pivot_is_small(k)) {
+                if (!restart_or_fail()) {
                     detail::mark_breakdown(
-                        result, BreakdownReason::omega_denominator);
+                        result, BreakdownReason::idr_small_system);
                     return result;
                 }
-                omega = numerator / denominator;
+                restarted = true;
+                break;
             }
 
-            copy_owned(delta_solution[oldest], saved_oldest);
-            copy_owned(preconditioned, delta_solution[oldest]);
-            scale(omega, delta_solution[oldest]);
-            for (std::size_t column = 0; column < s; ++column) {
-                if (column == oldest) {
-                    axpy(-coefficients[column], saved_oldest,
-                         delta_solution[oldest]);
-                } else {
-                    axpy(-coefficients[column], delta_solution[column],
-                         delta_solution[oldest]);
-                }
+            copy_owned(operator_work, basis_residual[k]);
+            copy_owned(preconditioned, basis_solution[k]);
+            const T beta = shadow_residual[k] / pivot;
+            axpy(beta, basis_solution[k], solution);
+            axpy(-beta, basis_residual[k], residual);
+            for (std::size_t row = k + 1; row < s; ++row) {
+                shadow_residual[row] -=
+                    beta * moment_matrix[row * s + k];
             }
-            detail::apply_operator(linear_operator, delta_solution[oldest],
-                                   operator_work, result);
-            copy_owned(operator_work, delta_residual[oldest]);
-            scale(T(-1), delta_residual[oldest]);
-            axpy(T(1), delta_solution[oldest], solution);
-            axpy(T(1), delta_residual[oldest], residual);
+            shadow_residual[k] = T(0);
             ++result.iterations;
-
-            for (std::size_t row = 0; row < s; ++row) {
-                const T delta_moment = detail::dot(reduction, shadow[row],
-                                                   delta_residual[oldest], result);
-                moment_matrix[row * s + oldest] = delta_moment;
-                moment_residual[row] += delta_moment;
-            }
-            oldest = (oldest + 1) % s;
+            // The recovery budget guards repeated attempts that make no
+            // progress.  A completed IDR update proves that the rebuilt
+            // shadow system is usable, so an earlier recovery must not count
+            // against a later, unrelated near-breakdown.
+            breakdown_restarts = 0;
 
             residual_norm = detail::norm(reduction, residual, result);
             result.recursive_residual_norm = residual_norm;
-            if (residual_norm <= threshold) {
-                detail::true_residual(linear_operator, rhs, solution, residual,
-                                      operator_work, result);
-                const T true_norm = detail::norm(reduction, residual, result);
-                detail::set_residual_result(result, residual_norm, true_norm, rhs_norm);
-                result.status = true_norm <= threshold
-                    ? SolverStatus::converged : SolverStatus::diverged;
+            if (!std::isfinite(residual_norm)) {
+                detail::mark_breakdown(
+                    result, BreakdownReason::non_finite_scalar);
                 return result;
             }
+            if (residual_norm <= threshold) {
+                detail::true_residual(linear_operator, rhs, solution,
+                                      residual, operator_work, result);
+                const T true_norm = detail::norm(reduction, residual, result);
+                detail::set_residual_result(result, residual_norm,
+                                            true_norm, rhs_norm);
+                if (true_norm <= threshold) {
+                    result.status = SolverStatus::converged;
+                    return result;
+                }
+                residual_norm = true_norm;
+                if (!restart_or_fail()) {
+                    result.status = SolverStatus::diverged;
+                    return result;
+                }
+                restarted = true;
+                break;
+            }
+            if (options.residual_replacement_interval > 0
+                && result.iterations
+                    % options.residual_replacement_interval == 0) {
+                detail::true_residual(linear_operator, rhs, solution,
+                                      residual, operator_work, result);
+                residual_norm = detail::norm(reduction, residual, result);
+                detail::set_residual_result(result, residual_norm,
+                                            residual_norm, rhs_norm);
+                if (residual_norm <= threshold) {
+                    result.status = SolverStatus::converged;
+                    return result;
+                }
+                if (!restart_basis()) {
+                    detail::mark_breakdown(
+                        result, BreakdownReason::idr_shadow_space);
+                    return result;
+                }
+                restarted = true;
+                break;
+            }
+        }
+        if (restarted) {
+            continue;
+        }
+        if (result.iterations >= options.maximum_iterations) {
+            break;
+        }
+
+        // Stabilizing minimum-residual step maps the residual into the next
+        // Sonneveld space. Guard the angle to avoid a nearly orthogonal omega.
+        detail::apply_preconditioner(preconditioner, residual,
+                                     preconditioned, result);
+        detail::apply_operator(linear_operator, preconditioned,
+                               operator_work, result);
+        const T numerator = detail::dot(
+            reduction, operator_work, residual, result);
+        const T denominator = detail::dot(
+            reduction, operator_work, operator_work, result);
+        if (!std::isfinite(denominator)
+            || denominator <= std::numeric_limits<T>::min()) {
+            detail::mark_breakdown(result, BreakdownReason::omega_denominator);
+            return result;
+        }
+        omega = numerator / denominator;
+        const T angle_denominator = std::sqrt(std::max(T(0), denominator))
+            * std::max(residual_norm, std::numeric_limits<T>::min());
+        const T angle = angle_denominator > T(0)
+            ? std::abs(numerator) / angle_denominator : T(1);
+        constexpr T minimum_angle = T(0.7);
+        if (angle > T(0) && angle < minimum_angle) {
+            omega *= minimum_angle / angle;
+        }
+        if (!std::isfinite(omega)
+            || std::abs(omega) <= std::numeric_limits<T>::min()) {
+            detail::mark_breakdown(result, BreakdownReason::omega_denominator);
+            return result;
+        }
+        axpy(omega, preconditioned, solution);
+        axpy(-omega, operator_work, residual);
+        ++result.iterations;
+        breakdown_restarts = 0;
+        residual_norm = detail::norm(reduction, residual, result);
+        result.recursive_residual_norm = residual_norm;
+        if (!std::isfinite(residual_norm)) {
+            detail::mark_breakdown(
+                result, BreakdownReason::non_finite_scalar);
+            return result;
+        }
+        if (residual_norm <= threshold) {
+            detail::true_residual(linear_operator, rhs, solution, residual,
+                                  operator_work, result);
+            const T true_norm = detail::norm(reduction, residual, result);
+            detail::set_residual_result(result, residual_norm,
+                                        true_norm, rhs_norm);
+            if (true_norm <= threshold) {
+                result.status = SolverStatus::converged;
+                return result;
+            }
+            residual_norm = true_norm;
+            if (!restart_or_fail()) {
+                result.status = SolverStatus::diverged;
+                return result;
+            }
+            continue;
+        }
+        if (options.residual_replacement_interval > 0
+            && result.iterations
+                % options.residual_replacement_interval == 0) {
+            detail::true_residual(linear_operator, rhs, solution,
+                                  residual, operator_work, result);
+            residual_norm = detail::norm(reduction, residual, result);
+            detail::set_residual_result(result, residual_norm,
+                                        residual_norm, rhs_norm);
+            if (residual_norm <= threshold) {
+                result.status = SolverStatus::converged;
+                return result;
+            }
+            if (!restart_basis()) {
+                detail::mark_breakdown(
+                    result, BreakdownReason::idr_shadow_space);
+                return result;
+            }
+            continue;
+        }
+        for (std::size_t row = 0; row < s; ++row) {
+            shadow_residual[row] = detail::dot(
+                reduction, shadow[row], residual, result);
         }
     }
 

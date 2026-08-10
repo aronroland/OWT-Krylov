@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <vector>
 
@@ -66,6 +67,110 @@ void test_owned_only_reduction()
     const owt::krylov::SerialReduction<double> reduction;
     require(std::abs(reduction.norm(x) - 5.0) < 1e-14,
             "ghost values contributed to an owned reduction");
+
+    owt::krylov::BlockVector<float> cancellation(3, 1, 1);
+    cancellation.node(0)[0] = 1.0e20F;
+    cancellation.node(1)[0] = 1.0F;
+    cancellation.node(2)[0] = -1.0e20F;
+    cancellation.node(3)[0] = 1.0e10F;
+    owt::krylov::BlockVector<float> ones(3, 1, 1);
+    ones.fill(1.0F);
+    const owt::krylov::CompensatedSerialReduction<float> compensated;
+    require(compensated.dot(cancellation, ones) == 1.0F,
+            "compensated reduction lost a representable cancellation term");
+
+    owt::krylov::BlockVector<double> non_finite(1, 0, 2);
+    non_finite.node(0)[0] = std::numeric_limits<double>::infinity();
+    non_finite.node(0)[1] = 0.0;
+    require(std::isinf(reduction.norm(non_finite)),
+            "infinite norm was silently converted to zero");
+    non_finite.node(0)[0] = std::numeric_limits<double>::quiet_NaN();
+    require(std::isnan(reduction.norm(non_finite)),
+            "NaN norm was silently converted to zero");
+
+    owt::krylov::BlockCsrMatrix<double> identity_matrix(
+        1, 0, 2, {0, 1}, {0}, {1.0, 1.0});
+    owt::krylov::DistributedBlockOperator identity_operator(identity_matrix);
+    owt::krylov::BlockVector<double> non_finite_rhs(1, 0, 2);
+    non_finite_rhs.node(0)[0] = std::numeric_limits<double>::infinity();
+    non_finite_rhs.node(0)[1] = 1.0;
+    owt::krylov::BlockVector<double> finite_solution(1, 0, 2);
+    owt::krylov::SolverOptions<double> options;
+    const auto non_finite_result = owt::krylov::jacobi(
+        identity_operator, non_finite_rhs, finite_solution, options,
+        owt::krylov::IdentityPreconditioner{}, reduction);
+    require(non_finite_result.status == owt::krylov::SolverStatus::breakdown
+                && non_finite_result.breakdown_reason
+                    == owt::krylov::BreakdownReason::non_finite_scalar,
+            "stationary solver accepted a non-finite right-hand side");
+}
+
+void test_interleaved_frequency_line_solve()
+{
+    using namespace owt::krylov;
+    constexpr std::size_t sigma_count = 3;
+    constexpr std::size_t direction_count = 2;
+    const std::vector<double> exact{1, 2, 3, 4, 5, 6};
+    const std::vector<double> lower{
+        0, 0,
+        -0.2, -0.25,
+        -0.1, -0.2};
+    const std::vector<double> upper{
+        -0.3, -0.2,
+        -0.4, -0.35,
+        0, 0};
+    // Component 2 is a prescribed bin embedded in direction line 0. Its row
+    // is identity, while the two neighboring evolved rows still couple to it.
+    const auto is_identity = [](std::size_t component) {
+        return component == 2;
+    };
+    std::vector<double> rhs(exact.size(), 0.0);
+    for (std::size_t sigma = 0; sigma < sigma_count; ++sigma) {
+        for (std::size_t direction = 0; direction < direction_count;
+             ++direction) {
+            const std::size_t component =
+                sigma * direction_count + direction;
+            if (is_identity(component)) {
+                rhs[component] = exact[component];
+                continue;
+            }
+            rhs[component] = exact[component];
+            if (sigma > 0) {
+                rhs[component] +=
+                    lower[component] * exact[component - direction_count];
+            }
+            if (sigma + 1 < sigma_count) {
+                rhs[component] +=
+                    upper[component] * exact[component + direction_count];
+            }
+        }
+    }
+
+    std::vector<double> solution(exact.size(), 0.0);
+    std::vector<double> modified_upper(sigma_count);
+    std::vector<double> modified_rhs(sigma_count);
+    solve_interleaved_unit_tridiagonal<double>(
+        sigma_count, direction_count, lower, upper, rhs, solution,
+        is_identity, modified_upper, modified_rhs);
+    for (std::size_t component = 0; component < exact.size(); ++component) {
+        require(std::abs(solution[component] - exact[component]) < 1e-13,
+                "interleaved frequency-line solve is inaccurate");
+    }
+}
+
+void test_timer_survives_result_move()
+{
+    using namespace owt::krylov;
+    SolverResult<double> returned;
+    {
+        SolverResult<double> local;
+        detail::ScopedSolverTimer timer(local, true);
+        returned = std::move(local);
+    }
+    require(returned.timings != nullptr,
+            "moving a timed solver result lost its timing storage");
+    require(returned.solve_seconds() >= 0.0,
+            "moved solver result contains an invalid solve time");
 }
 
 void test_dense_block_csr()
@@ -199,6 +304,79 @@ void test_float_mixed_precision_solver()
     const auto result = communication_hiding_bicgstab_mixed_precision(
         operator_view, rhs, solution, options, preconditioner);
     require(result.converged(), "mixed-precision float BiCGSTAB failed");
+}
+
+void test_single_precision_nonnormal_reliable_updates()
+{
+    using namespace owt::krylov;
+    constexpr std::size_t node_count = 256;
+    std::vector<std::size_t> offsets(node_count + 1, 0);
+    std::vector<std::size_t> columns;
+    std::vector<float> values;
+    columns.reserve(2 * node_count - 1);
+    values.reserve(2 * node_count - 1);
+    for (std::size_t row = 0; row < node_count; ++row) {
+        columns.push_back(row);
+        values.push_back(1.0F);
+        if (row + 1 < node_count) {
+            columns.push_back(row + 1);
+            values.push_back(-0.99F);
+        }
+        offsets[row + 1] = columns.size();
+    }
+
+    BlockCsrMatrix<float> matrix(
+        node_count, 0, 1, offsets, columns, values);
+    DistributedBlockOperator operator_view(matrix);
+    BlockVector<float> exact(node_count, 0, 1);
+    for (std::size_t row = 0; row < node_count; ++row) {
+        exact.node(row)[0] = static_cast<float>((row % 17) + 1) / 17.0F;
+    }
+    BlockVector<float> rhs = exact.clone_layout();
+    BlockVector<float> operator_input = exact;
+    operator_view.apply(operator_input, rhs);
+
+    SolverOptions<float> options;
+    options.relative_tolerance = 1e-5F;
+    options.convergence_check_interval = 10;
+    options.residual_replacement_interval = 10;
+    options.maximum_iterations = 2000;
+    const JacobiPreconditioner preconditioner(matrix);
+
+    auto require_converged = [&](auto&& solve, const char* message) {
+        BlockVector<float> solution = exact.clone_layout();
+        const auto result = solve(solution);
+        require(result.converged(), message);
+        BlockVector<float> residual = exact.clone_layout();
+        BlockVector<float> work = exact.clone_layout();
+        operator_view.apply(solution, work);
+        for (std::size_t i = 0; i < rhs.owned_size(); ++i) {
+            residual.data()[i] = rhs.data()[i] - work.data()[i];
+        }
+        const SerialReduction<float> reduction;
+        require(reduction.norm(residual)
+                    <= options.relative_tolerance * reduction.norm(rhs),
+                "reliable-update solver accepted a false recursive residual");
+    };
+
+    require_converged(
+        [&](BlockVector<float>& solution) {
+            return bicgstab(operator_view, rhs, solution, options,
+                            preconditioner);
+        },
+        "single-precision nonnormal BiCGSTAB failed");
+    require_converged(
+        [&](BlockVector<float>& solution) {
+            return pipelined_bicgstab(operator_view, rhs, solution, options,
+                                      preconditioner);
+        },
+        "single-precision nonnormal pipelined BiCGSTAB failed");
+    require_converged(
+        [&](BlockVector<float>& solution) {
+            return communication_hiding_bicgstab(
+                operator_view, rhs, solution, options, preconditioner);
+        },
+        "single-precision nonnormal communication-hiding BiCGSTAB failed");
 }
 
 void test_unstructured_orderings()
@@ -592,6 +770,19 @@ void test_krylov_solvers_on_block_system()
                                    options, jacobi_preconditioner);
     require(idr2_result.converged(), "IDR(2) failed on block system");
 
+    // A moment pivot is meaningful relative to its newly assembled column,
+    // not relative to the identity matrix used before the first IDR update.
+    // This scaled problem catches false small-system breakdowns near a tight
+    // residual target.
+    BlockVector<double> scaled_idr2_rhs = rhs;
+    scale(1e-18, scaled_idr2_rhs);
+    BlockVector<double> scaled_idr2_solution = exact.clone_layout();
+    const auto scaled_idr2_result = idrs(
+        operator_view, scaled_idr2_rhs, scaled_idr2_solution,
+        options, jacobi_preconditioner);
+    require(scaled_idr2_result.converged(),
+            "IDR(2) used an absolute moment-pivot scale");
+
     const Ilu0Preconditioner ilu(matrix);
     BlockVector<double> ilu_solution = exact.clone_layout();
     const auto ilu_result = bicgstab(operator_view, rhs, ilu_solution,
@@ -664,6 +855,7 @@ void test_krylov_solvers_on_block_system()
         SpecWaveSolver::multigrid_w,
         SpecWaveSolver::full_multigrid,
         SpecWaveSolver::pipelined_bicgstab_ilu0,
+        SpecWaveSolver::async_pipe_stable,
     };
     SolverOptions<double> legacy_options = stationary_options;
     legacy_options.maximum_iterations = 2000;
@@ -694,10 +886,13 @@ int main()
     try {
         test_block_layout_and_matrix();
         test_owned_only_reduction();
+        test_interleaved_frequency_line_solve();
+        test_timer_survives_result_move();
         test_dense_block_csr();
         test_zero_copy_views();
         test_split_zero_copy_matrix_view();
         test_float_mixed_precision_solver();
+        test_single_precision_nonnormal_reliable_updates();
         test_unstructured_orderings();
         test_numeric_preconditioner_updates();
         test_breakdown_reporting();

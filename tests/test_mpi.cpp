@@ -36,6 +36,17 @@ void run_distributed_test(MPI_Comm communicator)
     require(deterministic_first == deterministic_second,
             "rank-ordered MPI reduction is not deterministic");
 
+    BlockVector<float> compensated_vector(3, 0, 1);
+    compensated_vector.node(0)[0] = rank == 0 ? 1.0e20F : 0.0F;
+    compensated_vector.node(1)[0] = rank == 0 ? 1.0F : 0.0F;
+    compensated_vector.node(2)[0] = rank == 0 ? -1.0e20F : 0.0F;
+    BlockVector<float> compensated_ones(3, 0, 1);
+    compensated_ones.fill_owned(1.0F);
+    MpiCompensatedReduction<float> compensated_reduction(communicator);
+    require(compensated_reduction.dot(compensated_vector,
+                                      compensated_ones) == 1.0F,
+            "MPI compensated reduction lost a local cancellation term");
+
     using Halo = MpiHaloExchange<double>;
     Halo::Neighbor neighbor;
     neighbor.rank = 1 - rank;
@@ -165,6 +176,31 @@ void run_distributed_test(MPI_Comm communicator)
 }
 
 #ifdef OWT_KRYLOV_ENABLE_PETSC
+class PetscCoupledTestOperator {
+public:
+    using Matrix = owt::krylov::BlockCsrMatrix<double>;
+    using Halo = owt::krylov::MpiHaloExchange<double>;
+
+    PetscCoupledTestOperator(const Matrix& matrix, Halo halo)
+        : geographic_(matrix, std::move(halo)) {}
+
+    void apply(owt::krylov::BlockVector<double>& input,
+               owt::krylov::BlockVector<double>& output)
+    {
+        geographic_.apply(input, output);
+        for (std::size_t node = 0; node < input.owned_nodes(); ++node) {
+            const double first = input.node(node)[0];
+            const double second = input.node(node)[1];
+            output.node(node)[0] += 0.25 * second;
+            output.node(node)[1] -= 0.5 * first;
+        }
+    }
+
+private:
+    owt::krylov::OverlappedDistributedBlockOperator<Matrix, Halo>
+        geographic_;
+};
+
 void run_petsc_test(MPI_Comm communicator)
 {
     using namespace owt::krylov;
@@ -203,6 +239,37 @@ void run_petsc_test(MPI_Comm communicator)
             "PETSc adapter first component is inaccurate");
     require(std::abs(solution.node(0)[1] - static_cast<double>(2 * (rank + 1))) < 1e-10,
             "PETSc adapter second component is inaccurate");
+
+    MpiHaloExchange<double>::Neighbor shell_neighbor;
+    shell_neighbor.rank = 1 - rank;
+    shell_neighbor.send_owned_nodes = {0};
+    shell_neighbor.receive_ghost_nodes = {0};
+    PetscCoupledTestOperator shell_operator(
+        matrix, MpiHaloExchange<double>(
+                    communicator, 1, 1, 2, {shell_neighbor}, 9181));
+    BlockVector<double> shell_exact(1, 1, 2);
+    shell_exact.node(0)[0] = static_cast<double>(rank + 1);
+    shell_exact.node(0)[1] = static_cast<double>(3 - rank);
+    BlockVector<double> shell_rhs = shell_exact.clone_layout();
+    BlockVector<double> shell_exact_for_apply = shell_exact;
+    shell_operator.apply(shell_exact_for_apply, shell_rhs);
+    BlockVector<double> shell_solution = shell_exact.clone_layout();
+    shell_solution.fill_owned(0.0);
+    PetscSolverOptions shell_options;
+    shell_options.ksp_type = KSPGMRES;
+    shell_options.pc_type = PCNONE;
+    shell_options.relative_tolerance = 1e-12;
+    PetscShellSolver<double, PetscCoupledTestOperator> shell_solver(
+        communicator, std::size_t(1), std::size_t(1), std::uint64_t(2),
+        std::size_t(2), shell_operator, shell_options);
+    const auto shell_result = shell_solver.solve(shell_rhs, shell_solution);
+    require(shell_result.converged(),
+            "PETSc shell adapter did not converge on coupled components");
+    require(std::abs(shell_solution.node(0)[0] - shell_exact.node(0)[0])
+                    < 1e-10
+                && std::abs(shell_solution.node(0)[1]
+                            - shell_exact.node(0)[1]) < 1e-10,
+            "PETSc shell adapter dropped an application-only coupling");
 
     PetscCoarseOptions coarse_options;
     coarse_options.pc_type = PCJACOBI;

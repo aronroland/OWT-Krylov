@@ -1,10 +1,15 @@
 # OWT-Krylov
 
-OWT-Krylov is the standalone extraction of SpecWave's distributed solver
-architecture for unstructured grids. It is built around the performance model
-that made SpecWave's native vectorized BiCGSTAB faster than the tested PETSc
-configuration: owned/ghost node blocks, fused traversal of all components at a
-node, batched reductions, direct MPI halo types, and SIMD across each node block.
+> **License:** Source-available for evaluation and testing only. Production,
+> operational, commercial-service, redistribution, and sublicensing uses are
+> prohibited without a separate written license. This is not open-source
+> software. See [LICENSE](LICENSE).
+
+OWT-Krylov is a standalone solver library derived from SpecWave's distributed
+solver architecture for unstructured grids. Its design retains owned/ghost node
+blocks, fused traversal of all components at a node, batched reductions, direct
+MPI halo types, and SIMD across each node block. Performance claims require a
+reproduced, residual-matched application benchmark.
 
 This is not a scalar-CSR rewrite. The primary storage unit is a contiguous block
 per unstructured-grid node.
@@ -44,9 +49,12 @@ per unstructured-grid node.
 - reusable solver workspaces for GMRES and all BiCGSTAB recurrence families;
 - typed breakdown reasons, optional solve timing, reduction/application counts,
   and a rank-ordered deterministic MPI verification reduction;
-- an exact compatibility enumeration for SpecWave solver IDs `0` through `21`;
-- a compiled SpecWave adapter (`solver_type=22`) that borrows `VA`, diagonal,
-  edge coefficients, and the existing owned/ghost decomposition directly.
+- a compatibility enumeration for the legacy SpecWave IDs, with source and
+  application equivalence documented separately;
+- a Triton adapter in the sibling Triton_C repository that borrows `VA`, matrix
+  coefficients, and the existing owned/ghost decomposition directly. Current
+  Triton integration covers IDs 0--30, including the explicit
+  `solver_type=22` AsyncPipeStable selector; IDs 23--30 are OWT extensions.
 
 The detailed mapping is in
 [SpecWave port matrix](docs/SPECWAVE_PORT_MATRIX.md).
@@ -96,7 +104,9 @@ find_package(OWTKrylov CONFIG REQUIRED)
 target_link_libraries(your_target PRIVATE OWT::Krylov)
 ```
 
-The serial suite exercises every native SpecWave solver ID. The MPI suite uses
+The serial suite exercises every OWT algorithm family used by the generic
+SpecWave compatibility layer; this is not application validation of every
+legacy numeric ID. The MPI suite uses
 two and four ranks to verify the owned/ghost reduction rule, direct block halo
 exchange, automatic overlap import, RAS, the distributed coarse correction, and
 partitioned solves. When PETSc is enabled, the two-rank test also assembles and
@@ -154,6 +164,18 @@ OpenMP Target is an implemented portability backend, but no GPU speed claim is
 made without device-resident workload measurements. Fixed-rank-order reduction
 is deterministic for a fixed partition, not bitwise partition independent.
 
-The SpecWave adapter and non-mutating Limon protocol are implemented. OWT makes
-no new application-level native-over-PETSc timing claim until a recorded run has
-zero exit codes and matched independently verified residuals.
+The Triton application adapter and a non-mutating Limon protocol are
+implemented, but no complete tracked Limon result table has been reproduced in
+the reviewed checkout. OWT makes no application-level native-over-PETSc timing
+claim until a recorded run has zero exit codes and matched independently
+verified residuals.
+
+## Licensing
+
+Copyright (c) 2026 Aron Roland. All rights reserved.
+
+OWT-Krylov is available under the OWT-Krylov Evaluation License Agreement for
+internal evaluation and testing during the permitted evaluation period. The
+license does not permit production, operational, mission, commercial-service,
+redistribution, or sublicensing use. A separate written agreement is required
+for those rights. See [LICENSE](LICENSE) for the controlling terms.

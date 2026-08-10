@@ -8,12 +8,81 @@
 #include <cmath>
 #include <concepts>
 #include <cstddef>
+#include <limits>
 #include <span>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
 namespace owt::krylov {
+
+/**
+ * Solve independent unit-diagonal tridiagonal lines stored with the line
+ * coordinate as the slow index.  Triton's intrinsic-frequency operator uses
+ * this layout: component = sigma * direction_count + direction.
+ *
+ * Identity rows may occur inside a line (for prescribed characteristic
+ * boundary bins).  Their own off-diagonals are removed while neighboring
+ * evolved rows retain their coupling to the prescribed unknown, exactly as
+ * in the full matrix.
+ */
+template<std::floating_point T, class IsIdentityRow>
+void solve_interleaved_unit_tridiagonal(
+    std::size_t line_length,
+    std::size_t line_count,
+    std::span<const T> lower,
+    std::span<const T> upper,
+    std::span<const T> rhs,
+    std::span<T> solution,
+    IsIdentityRow&& is_identity_row,
+    std::span<T> modified_upper,
+    std::span<T> modified_rhs)
+{
+    const std::size_t component_count = line_length * line_count;
+    if (line_length == 0 || line_count == 0
+        || lower.size() != component_count
+        || upper.size() != component_count
+        || rhs.size() != component_count
+        || solution.size() != component_count
+        || modified_upper.size() < line_length
+        || modified_rhs.size() < line_length) {
+        throw std::invalid_argument(
+            "invalid interleaved tridiagonal solve layout");
+    }
+
+    for (std::size_t line = 0; line < line_count; ++line) {
+        for (std::size_t row = 0; row < line_length; ++row) {
+            const std::size_t component = row * line_count + line;
+            const bool identity = is_identity_row(component);
+            const T subdiagonal = identity || row == 0
+                ? T(0) : lower[component];
+            const T superdiagonal = identity || row + 1 == line_length
+                ? T(0) : upper[component];
+            const T denominator = row == 0
+                ? T(1)
+                : T(1) - subdiagonal * modified_upper[row - 1];
+            if (!std::isfinite(denominator)
+                || std::abs(denominator) <= std::numeric_limits<T>::min()) {
+                throw std::runtime_error(
+                    "interleaved unit tridiagonal system is singular");
+            }
+            modified_upper[row] = superdiagonal / denominator;
+            modified_rhs[row] =
+                (rhs[component]
+                 - (row == 0 ? T(0)
+                              : subdiagonal * modified_rhs[row - 1]))
+                / denominator;
+        }
+        for (std::size_t row = line_length; row-- > 0;) {
+            const std::size_t component = row * line_count + line;
+            solution[component] = modified_rhs[row]
+                - (row + 1 == line_length
+                       ? T(0)
+                       : modified_upper[row] *
+                             solution[component + line_count]);
+        }
+    }
+}
 
 template<std::floating_point T>
 [[nodiscard]] std::vector<T> chebyshev_srj_schedule(std::size_t levels,
@@ -31,6 +100,35 @@ template<std::floating_point T>
             - spectral_radius * spectral_radius * cosine * cosine));
     }
     return result;
+}
+
+/**
+ * Exact scheduled-relaxation coefficients used by the reviewed SpecWave
+ * solver_type=2 implementation.  These are deliberately separate from the
+ * parameterized Chebyshev generator above: the legacy 4- and 16-stage tables
+ * were tuned with a different spectral-radius assumption than the 8-stage
+ * table, so a single generator call does not reproduce the application
+ * selector.
+ */
+template<std::floating_point T>
+[[nodiscard]] std::vector<T> specwave_chebyshev_srj_schedule(
+    std::size_t levels)
+{
+    switch (levels) {
+    case 4:
+        return {T(1.235240), T(1.027951), T(1.027951), T(1.235240)};
+    case 8:
+        return {T(1.613982), T(1.275659), T(1.089826), T(1.009504),
+                T(1.009504), T(1.089826), T(1.275659), T(1.613982)};
+    case 16:
+        return {T(1.304350), T(1.264458), T(1.203475), T(1.140355),
+                T(1.085685), T(1.043724), T(1.015702), T(1.001741),
+                T(1.001741), T(1.015702), T(1.043724), T(1.085685),
+                T(1.140355), T(1.203475), T(1.264458), T(1.304350)};
+    default:
+        throw std::invalid_argument(
+            "SpecWave Chebyshev-SRJ levels must be 4, 8, or 16");
+    }
 }
 
 template<std::floating_point T,
@@ -56,12 +154,20 @@ template<std::floating_point T,
     BlockVector<T> correction = rhs.clone_layout();
     BlockVector<T> work = rhs.clone_layout();
     const T rhs_norm = detail::norm(reduction, rhs, result);
+    if (!std::isfinite(rhs_norm)) {
+        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+        return result;
+    }
     const T threshold = convergence_threshold(rhs_norm, options);
 
     detail::true_residual(linear_operator, rhs, solution, residual, work, result);
     const T initial_norm = detail::norm(reduction, residual, result);
     result.initial_residual_norm = initial_norm;
     detail::set_residual_result(result, initial_norm, initial_norm, rhs_norm);
+    if (!std::isfinite(initial_norm)) {
+        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+        return result;
+    }
     if (initial_norm <= threshold) {
         result.status = SolverStatus::converged;
         return result;
@@ -77,6 +183,11 @@ template<std::floating_point T,
             detail::true_residual(linear_operator, rhs, solution, residual, work, result);
             const T norm = detail::norm(reduction, residual, result);
             detail::set_residual_result(result, norm, norm, rhs_norm);
+            if (!std::isfinite(norm)) {
+                detail::mark_breakdown(
+                    result, BreakdownReason::non_finite_scalar);
+                return result;
+            }
             if (norm <= threshold) {
                 result.status = SolverStatus::converged;
                 return result;
@@ -131,6 +242,79 @@ template<std::floating_point T,
                           std::forward<Preconditioner>(diagonal_preconditioner),
                           std::span<const T>(schedule),
                           std::move(reduction));
+}
+
+/**
+ * Convergence driver for an application-defined stationary sweep.
+ *
+ * The sweep must update solution for the complete equation represented by
+ * linear_operator.  This is the appropriate interface for split application
+ * operators whose same-node block, constraints, or matrix-free terms are not
+ * present in BlockCsrMatrix.  It avoids the incorrect assumption that a
+ * geographic component-diagonal CSR row is the complete equation.
+ */
+template<std::floating_point T,
+         class Operator,
+         class Sweep,
+         class Reduction = SerialReduction<T>>
+[[nodiscard]] SolverResult<T> stationary_sweep(
+    Operator& linear_operator,
+    const BlockVector<T>& rhs,
+    BlockVector<T>& solution,
+    const SolverOptions<T>& options,
+    Sweep&& sweep,
+    Reduction reduction = {})
+{
+    SolverResult<T> result;
+    detail::ScopedSolverTimer timer(result, options.collect_timings);
+    if (detail::invalid_problem(rhs, solution, options)) {
+        return result;
+    }
+
+    BlockVector<T> residual = rhs.clone_layout();
+    BlockVector<T> work = rhs.clone_layout();
+    const T rhs_norm = detail::norm(reduction, rhs, result);
+    if (!std::isfinite(rhs_norm)) {
+        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+        return result;
+    }
+    const T threshold = convergence_threshold(rhs_norm, options);
+    detail::true_residual(linear_operator, rhs, solution, residual, work, result);
+    const T initial_norm = detail::norm(reduction, residual, result);
+    result.initial_residual_norm = initial_norm;
+    detail::set_residual_result(result, initial_norm, initial_norm, rhs_norm);
+    if (!std::isfinite(initial_norm)) {
+        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+        return result;
+    }
+    if (initial_norm <= threshold) {
+        result.status = SolverStatus::converged;
+        return result;
+    }
+
+    for (std::size_t iteration = 1;
+         iteration <= options.maximum_iterations; ++iteration) {
+        result.iterations = iteration;
+        sweep(rhs, solution);
+        if (iteration % options.convergence_check_interval == 0
+            || iteration == 1) {
+            detail::true_residual(linear_operator, rhs, solution,
+                                  residual, work, result);
+            const T norm = detail::norm(reduction, residual, result);
+            detail::set_residual_result(result, norm, norm, rhs_norm);
+            if (!std::isfinite(norm)) {
+                detail::mark_breakdown(
+                    result, BreakdownReason::non_finite_scalar);
+                return result;
+            }
+            if (norm <= threshold) {
+                result.status = SolverStatus::converged;
+                return result;
+            }
+        }
+    }
+    result.status = SolverStatus::maximum_iterations;
+    return result;
 }
 
 namespace detail {
