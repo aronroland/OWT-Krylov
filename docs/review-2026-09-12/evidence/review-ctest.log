@@ -1,0 +1,98 @@
+Internal ctest changing into directory: /home/aron/git/OWT-Krylov/build-review
+Test project /home/aron/git/OWT-Krylov/build-review
+      Start  1: owt_krylov_core_tests
+ 1/16 Test  #1: owt_krylov_core_tests .............   Passed    0.00 sec
+      Start  2: review_nonfinite_norm
+ 2/16 Test  #2: review_nonfinite_norm .............***Failed    0.00 sec
+input=nan norm=0
+FAIL: nonfinite input was hidden by norm
+
+      Start  3: review_large_norm
+ 3/16 Test  #3: review_large_norm .................***Failed    0.00 sec
+input=9.9999999999999997e+199 norm=0
+FAIL: norm lost a representable magnitude
+
+      Start  4: review_small_norm
+ 4/16 Test  #4: review_small_norm .................***Failed    0.00 sec
+input=9.9999999999999998e-201 norm=0
+FAIL: norm lost a representable magnitude
+
+      Start  5: review_nonfinite_solve
+ 5/16 Test  #5: review_nonfinite_solve ............***Failed    0.00 sec
+status=converged true_residual=0
+FAIL: GMRES accepted NaN RHS as converged
+
+      Start  6: review_recycled_view
+ 6/16 Test  #6: review_recycled_view ..............***Failed    0.00 sec
+status=converged reported=3.1401849173675503e-16 independent=1.4142135623730951 x=0,0
+FAIL: recycling corrupted the borrowed solution after convergence
+
+      Start  7: review_candidate_view
+ 7/16 Test  #7: review_candidate_view .............***Failed    0.00 sec
+candidate=0.60000000000000009,0.80000000000000004
+FAIL: add_candidate modified its const borrowed input
+
+      Start  8: review_ssor
+ 8/16 Test  #8: review_ssor .......................***Failed    0.00 sec
+actual=0.169921875,0.1875 expected=0.1640625,0.1875
+FAIL: SSOR action disagrees with its triangular factorization
+
+      Start  9: review_scaled_gmres
+ 9/16 Test  #9: review_scaled_gmres ...............***Failed    0.00 sec
+status=breakdown reason=singular_projected_system independent=1.4142135623730951
+FAIL: scaling a condition-number-two diagonal system caused breakdown
+
+      Start 10: review_scaled_bicgstab
+10/16 Test #10: review_scaled_bicgstab ............***Failed    0.00 sec
+status=breakdown reason=omega_zero independent=1.4142135623730951
+FAIL: scaling a condition-number-two diagonal system caused breakdown
+
+      Start 11: review_ilu_pivot
+11/16 Test #11: review_ilu_pivot ..................***Failed    0.00 sec
+output=-nan,-nan
+FAIL: ILU accepted a zero final pivot and returned nonfinite output
+
+      Start 12: review_changed_recycle_operator
+12/16 Test #12: review_changed_recycle_operator ...***Failed    0.00 sec
+status=breakdown independent=1.4142135623730951
+FAIL: recycle images became stale after an operator value update
+
+      Start 13: review_final_iteration
+13/16 Test #13: review_final_iteration ............***Failed    0.00 sec
+status=maximum_iterations true_relative_residual=0.10540925533894595
+FAIL: final verified residual met tolerance but status rejected convergence
+
+      Start 14: review_one_sync
+14/16 Test #14: review_one_sync ...................   Passed    0.00 sec
+      Start 15: review_send_buffer
+15/16 Test #15: review_send_buffer ................***Failed    0.00 sec
+status=converged send_buffer_modified=1
+FAIL: AsyncGS modified an exported interior node before send completion
+
+      Start 16: review_timer_no_elision
+16/16 Test #16: review_timer_no_elision ...........***Exception: SegFault  1.12 sec
+
+
+13% tests passed, 14 tests failed out of 16
+
+Label Time Summary:
+review    =   1.16 sec*proc (15 tests)
+
+Total Test time (real) =   1.17 sec
+
+The following tests FAILED:
+	  2 - review_nonfinite_norm (Failed)
+	  3 - review_large_norm (Failed)
+	  4 - review_small_norm (Failed)
+	  5 - review_nonfinite_solve (Failed)
+	  6 - review_recycled_view (Failed)
+	  7 - review_candidate_view (Failed)
+	  8 - review_ssor (Failed)
+	  9 - review_scaled_gmres (Failed)
+	 10 - review_scaled_bicgstab (Failed)
+	 11 - review_ilu_pivot (Failed)
+	 12 - review_changed_recycle_operator (Failed)
+	 13 - review_final_iteration (Failed)
+	 15 - review_send_buffer (Failed)
+	 16 - review_timer_no_elision (SEGFAULT)
+Errors while running CTest

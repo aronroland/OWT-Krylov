@@ -1,0 +1,3 @@
+[ 33%] Built target owt_krylov_core_tests
+[ 66%] Built target owt_krylov_foundation_tests
+[100%] Built target owt_krylov_foundation_timer

@@ -54,25 +54,29 @@ template<std::floating_point T,
     copy_owned(residual, shadow);
     copy_owned(residual, search);
 
-    std::array<T, 2> local_norms{
+    std::array<detail::local_scalar_t<Reduction, T>, 2> local_norms{
         reduction.local_dot(rhs, rhs),
         reduction.local_dot(residual, residual),
     };
     std::array<T, 2> global_norms{};
     reduction.sum(local_norms, global_norms);
     ++result.global_reductions;
-    const T rhs_norm = std::sqrt(std::max(T(0), global_norms[0]));
-    T residual_norm = std::sqrt(std::max(T(0), global_norms[1]));
+    const T rhs_norm = detail::norm_from_squared(reduction, rhs, global_norms[0], result);
+    T residual_norm = detail::norm_from_squared(reduction, residual, global_norms[1], result);
     const T threshold = convergence_threshold(rhs_norm, options);
     const T scalar_tiny = T(1024) * std::numeric_limits<T>::min();
     result.initial_residual_norm = residual_norm;
     detail::set_residual_result(result, residual_norm, residual_norm, rhs_norm);
+    if (!std::isfinite(residual_norm) || !std::isfinite(threshold)) {
+        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+        return result;
+    }
     if (residual_norm <= threshold) {
         result.status = SolverStatus::converged;
         return result;
     }
 
-    std::array<T, 1> local_rho{reduction.local_dot(shadow, residual)};
+    std::array<detail::local_scalar_t<Reduction, T>, 1> local_rho{reduction.local_dot(shadow, residual)};
     std::array<T, 1> global_rho{};
     reduction.sum(local_rho, global_rho);
     ++result.global_reductions;
@@ -97,7 +101,7 @@ template<std::floating_point T,
         detail::apply_operator(linear_operator, preconditioned_search,
                                operator_search, result);
 
-        std::array<T, 1> local_shadow_operator{
+        std::array<detail::local_scalar_t<Reduction, T>, 1> local_shadow_operator{
             reduction.local_dot(shadow, operator_search)};
         std::array<T, 1> global_shadow_operator{};
         auto alpha_request = reduction.begin_sum(local_shadow_operator,
@@ -120,27 +124,24 @@ template<std::floating_point T,
         detail::apply_operator(linear_operator, preconditioned_intermediate,
                                operator_intermediate, result);
 
-        std::array<T, 2> local_omega{
+        std::array<detail::local_scalar_t<Reduction, T>, 3> local_omega{
             reduction.local_dot(operator_intermediate, intermediate),
             reduction.local_dot(operator_intermediate, operator_intermediate),
+            reduction.local_dot(intermediate, intermediate),
         };
-        std::array<T, 2> global_omega{};
+        std::array<T, 3> global_omega{};
         auto omega_request = reduction.begin_sum(local_omega, global_omega);
         ++result.global_reductions;
         reduction.end(omega_request);
-        if (!std::isfinite(global_omega[1])
+        const T intermediate_norm = detail::norm_from_squared(
+            reduction, intermediate, global_omega[2], result);
+        if (!std::isfinite(intermediate_norm)) {
+            detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+            return result;
+        }
+        if (intermediate_norm <= threshold || !std::isfinite(global_omega[1])
             || std::abs(global_omega[1]) <= scalar_tiny) {
-            // A vanishing A M^-1 s is the BiCGSTAB "happy breakdown" when
-            // the alpha update has already solved the system. Check it only
-            // on this exceptional path so the normal SpecWave recurrence
-            // retains three reductions per iteration.
-            std::array<T, 1> local_intermediate_norm{
-                reduction.local_dot(intermediate, intermediate)};
-            std::array<T, 1> global_intermediate_norm{};
-            reduction.sum(local_intermediate_norm, global_intermediate_norm);
-            ++result.global_reductions;
-            const T intermediate_norm =
-                std::sqrt(std::max(T(0), global_intermediate_norm[0]));
+            // The alpha update may have already solved the system.
             if (intermediate_norm <= threshold) {
                 axpy(alpha, preconditioned_search, solution);
                 detail::true_residual(linear_operator, rhs, solution, residual,
@@ -159,8 +160,10 @@ template<std::floating_point T,
             return result;
         }
         omega = global_omega[0] / global_omega[1];
-        if (!std::isfinite(omega)
-            || std::abs(omega) <= options.breakdown_tolerance) {
+        const T stabilization_angle = std::abs(global_omega[0])
+            / std::sqrt(global_omega[1]) / intermediate_norm;
+        if (!std::isfinite(omega) || omega == T(0)
+            || stabilization_angle <= options.breakdown_tolerance) {
             detail::mark_breakdown(result, BreakdownReason::omega_zero);
             return result;
         }
@@ -172,7 +175,7 @@ template<std::floating_point T,
                 - omega * operator_intermediate.data()[i];
         }
 
-        std::array<T, 2> local_next{
+        std::array<detail::local_scalar_t<Reduction, T>, 2> local_next{
             reduction.local_dot(shadow, residual),
             reduction.local_dot(residual, residual),
         };
@@ -185,7 +188,7 @@ template<std::floating_point T,
 
         const T previous_rho = rho;
         rho = global_next[0];
-        residual_norm = std::sqrt(std::max(T(0), global_next[1]));
+        residual_norm = detail::norm_from_squared(reduction, residual, global_next[1], result);
         result.recursive_residual_norm = residual_norm;
         if (residual_norm <= threshold) {
             detail::true_residual(linear_operator, rhs, solution, residual,
@@ -222,7 +225,11 @@ template<std::floating_point T,
     detail::true_residual(linear_operator, rhs, solution, residual, work, result);
     const T true_norm = detail::norm(reduction, residual, result);
     detail::set_residual_result(result, residual_norm, true_norm, rhs_norm);
-    result.status = SolverStatus::maximum_iterations;
+    result.status = true_norm <= threshold
+        ? SolverStatus::converged : SolverStatus::maximum_iterations;
+    if (!std::isfinite(true_norm)) {
+        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+    }
     return result;
 }
 
@@ -335,17 +342,21 @@ template<std::floating_point T,
     detail::true_residual(linear_operator, rhs, solution, r,
                           operator_work, result);
     copy_owned(r, rp);
-    std::array<T, 2> local_norms{
+    std::array<detail::local_scalar_t<Reduction, T>, 2> local_norms{
         reduction.local_dot(rhs, rhs), reduction.local_dot(r, r)};
     std::array<T, 2> global_norms{};
     reduction.sum(local_norms, global_norms);
     ++result.global_reductions;
-    const T rhs_norm = std::sqrt(std::max(T(0), global_norms[0]));
-    T residual_norm = std::sqrt(std::max(T(0), global_norms[1]));
+    const T rhs_norm = detail::norm_from_squared(reduction, rhs, global_norms[0], result);
+    T residual_norm = detail::norm_from_squared(reduction, r, global_norms[1], result);
     const T threshold = convergence_threshold(rhs_norm, options);
     const T scalar_tiny = T(1024) * std::numeric_limits<T>::min();
     result.initial_residual_norm = residual_norm;
     detail::set_residual_result(result, residual_norm, residual_norm, rhs_norm);
+    if (!std::isfinite(residual_norm) || !std::isfinite(threshold)) {
+        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+        return result;
+    }
     if (residual_norm <= threshold) {
         result.status = SolverStatus::converged;
         return result;
@@ -358,7 +369,7 @@ template<std::floating_point T,
 
     auto initialize_recurrence = [&]() -> bool {
         copy_owned(r, rp);
-        std::array<T, 1> local_rho{reduction.local_dot(r, rp)};
+        std::array<detail::local_scalar_t<Reduction, T>, 1> local_rho{reduction.local_dot(r, rp)};
         std::array<T, 1> global_rho{};
         reduction.sum(local_rho, global_rho);
         ++result.global_reductions;
@@ -368,7 +379,7 @@ template<std::floating_point T,
         }
         detail::apply_preconditioner(preconditioner, r, r2, result);
         detail::apply_operator(linear_operator, r2, w, result);
-        std::array<T, 1> local_d2{reduction.local_dot(w, rp)};
+        std::array<detail::local_scalar_t<Reduction, T>, 1> local_d2{reduction.local_dot(w, rp)};
         std::array<T, 1> global_d2{};
         reduction.sum(local_d2, global_d2);
         ++result.global_reductions;
@@ -417,27 +428,28 @@ template<std::floating_point T,
             y.data()[i] = w.data()[i] - alpha * z.data()[i];
         }
 
-        std::array<T, 2> local_first{
-            reduction.local_dot(q, y), reduction.local_dot(y, y)};
-        std::array<T, 2> global_first{};
+        std::array<detail::local_scalar_t<Reduction, T>, 3> local_first{
+            reduction.local_dot(q, y), reduction.local_dot(y, y), reduction.local_dot(q, q)};
+        std::array<T, 3> global_first{};
         auto first_request = reduction.begin_sum(local_first, global_first);
         ++result.global_reductions;
         detail::apply_preconditioner(preconditioner, z, z2, result);
         detail::apply_operator(linear_operator, z2, v, result);
         reduction.end(first_request);
 
-        if (!std::isfinite(global_first[1])
+        const T intermediate_norm = detail::norm_from_squared(reduction, q, global_first[2], result);
+        if (!std::isfinite(intermediate_norm)) {
+            detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+            return result;
+        }
+        if (intermediate_norm <= threshold || !std::isfinite(global_first[1])
             || std::abs(global_first[1]) <= scalar_tiny) {
-            std::array<T, 1> local_qnorm{reduction.local_dot(q, q)};
-            std::array<T, 1> global_qnorm{};
-            reduction.sum(local_qnorm, global_qnorm);
-            ++result.global_reductions;
-            if (std::sqrt(std::max(T(0), global_qnorm[0])) <= threshold) {
+            if (intermediate_norm <= threshold) {
                 axpy(alpha, p2, solution);
                 detail::true_residual(linear_operator, rhs, solution, r,
                                       operator_work, result);
                 const T true_norm = detail::norm(reduction, r, result);
-                detail::set_residual_result(result, T(0), true_norm, rhs_norm);
+                detail::set_residual_result(result, intermediate_norm, true_norm, rhs_norm);
                 if (true_norm <= threshold) {
                     result.status = SolverStatus::converged;
                     return result;
@@ -457,7 +469,10 @@ template<std::floating_point T,
             return result;
         }
         omega = global_first[0] / global_first[1];
-        if (std::abs(omega) <= options.breakdown_tolerance) {
+        const T stabilization_angle = std::abs(global_first[0])
+            / std::sqrt(global_first[1]) / intermediate_norm;
+        if (!std::isfinite(omega) || omega == T(0)
+            || stabilization_angle <= options.breakdown_tolerance) {
             detail::mark_breakdown(result, BreakdownReason::omega_zero);
             return result;
         }
@@ -473,7 +488,7 @@ template<std::floating_point T,
         }
 
         const T previous_rho = rho;
-        std::array<T, 5> local_second{
+        std::array<detail::local_scalar_t<Reduction, T>, 5> local_second{
             reduction.local_dot(r, r),
             reduction.local_dot(r, rp),
             reduction.local_dot(s, rp),
@@ -487,7 +502,7 @@ template<std::floating_point T,
         detail::apply_operator(linear_operator, w2, t, result);
         reduction.end(second_request);
 
-        residual_norm = std::sqrt(std::max(T(0), global_second[0]));
+        residual_norm = detail::norm_from_squared(reduction, r, global_second[0], result);
         rho = global_second[1];
         result.recursive_residual_norm = residual_norm;
         if (residual_norm <= threshold) {
@@ -548,7 +563,11 @@ template<std::floating_point T,
                           operator_work, result);
     const T true_norm = detail::norm(reduction, r, result);
     detail::set_residual_result(result, residual_norm, true_norm, rhs_norm);
-    result.status = SolverStatus::maximum_iterations;
+    result.status = true_norm <= threshold
+        ? SolverStatus::converged : SolverStatus::maximum_iterations;
+    if (!std::isfinite(true_norm)) {
+        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+    }
     return result;
 }
 

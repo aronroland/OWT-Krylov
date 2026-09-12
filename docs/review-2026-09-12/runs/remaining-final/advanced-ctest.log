@@ -1,0 +1,65 @@
+Internal ctest changing into directory: /home/aron/git/OWT-Krylov/build-review-mpi
+Test project /home/aron/git/OWT-Krylov/build-review-mpi
+      Start  1: owt_krylov_core_tests
+ 1/27 Test  #1: owt_krylov_core_tests ......................   Passed    0.03 sec
+      Start  2: owt_krylov_foundation_norms
+ 2/27 Test  #2: owt_krylov_foundation_norms ................   Passed    0.00 sec
+      Start  3: owt_krylov_foundation_nonfinite
+ 3/27 Test  #3: owt_krylov_foundation_nonfinite ............   Passed    0.00 sec
+      Start  4: owt_krylov_foundation_pipelined_view
+ 4/27 Test  #4: owt_krylov_foundation_pipelined_view .......   Passed    0.01 sec
+      Start  5: owt_krylov_foundation_recycling
+ 5/27 Test  #5: owt_krylov_foundation_recycling ............   Passed    0.00 sec
+      Start  6: owt_krylov_foundation_timer
+ 6/27 Test  #6: owt_krylov_foundation_timer ................   Passed    0.00 sec
+      Start  7: owt_krylov_contract_ssor
+ 7/27 Test  #7: owt_krylov_contract_ssor ...................   Passed    0.01 sec
+      Start  8: owt_krylov_contract_scaled
+ 8/27 Test  #8: owt_krylov_contract_scaled .................   Passed    0.00 sec
+      Start  9: owt_krylov_contract_final
+ 9/27 Test  #9: owt_krylov_contract_final ..................   Passed    0.00 sec
+      Start 10: owt_krylov_contract_ilu
+10/27 Test #10: owt_krylov_contract_ilu ....................   Passed    0.00 sec
+      Start 11: owt_krylov_contract_recycling
+11/27 Test #11: owt_krylov_contract_recycling ..............   Passed    0.00 sec
+      Start 12: owt_krylov_mpi_contract_idr
+12/27 Test #12: owt_krylov_mpi_contract_idr ................   Passed    1.26 sec
+      Start 13: owt_krylov_mpi_contract_mixed
+13/27 Test #13: owt_krylov_mpi_contract_mixed ..............   Passed    1.25 sec
+      Start 14: owt_krylov_mpi_contract_overlap
+14/27 Test #14: owt_krylov_mpi_contract_overlap ............   Passed    1.26 sec
+      Start 15: owt_krylov_mpi_contract_halo
+15/27 Test #15: owt_krylov_mpi_contract_halo ...............   Passed    1.28 sec
+      Start 16: owt_krylov_foundation_mpi_norms
+16/27 Test #16: owt_krylov_foundation_mpi_norms ............   Passed    1.20 sec
+      Start 17: owt_krylov_foundation_mpi_nonfinite
+17/27 Test #17: owt_krylov_foundation_mpi_nonfinite ........   Passed    1.18 sec
+      Start 18: owt_krylov_foundation_mpi_pipelined_view
+18/27 Test #18: owt_krylov_foundation_mpi_pipelined_view ...   Passed    1.20 sec
+      Start 19: owt_krylov_mpi_tests
+19/27 Test #19: owt_krylov_mpi_tests .......................   Passed    1.28 sec
+      Start 20: owt_krylov_partition_2_ranks
+20/27 Test #20: owt_krylov_partition_2_ranks ...............   Passed    1.30 sec
+      Start 21: owt_krylov_partition_4_ranks
+21/27 Test #21: owt_krylov_partition_4_ranks ...............   Passed    1.30 sec
+      Start 37: review_harmonic_flexible
+22/27 Test #37: review_harmonic_flexible ...................   Passed    0.03 sec
+      Start 38: review_harmonic_pair
+23/27 Test #38: review_harmonic_pair .......................   Passed    0.03 sec
+      Start 39: review_harmonic_contracts
+24/27 Test #39: review_harmonic_contracts ..................   Passed    0.03 sec
+      Start 40: review_mpi_idr_global_dimension
+25/27 Test #40: review_mpi_idr_global_dimension ............   Passed    1.31 sec
+      Start 41: review_mpi_mixed_precision
+26/27 Test #41: review_mpi_mixed_precision .................   Passed    1.30 sec
+      Start 42: review_mpi_overlap_pattern
+27/27 Test #42: review_mpi_overlap_pattern .................   Passed    1.31 sec
+
+100% tests passed, 0 tests failed out of 27
+
+Label Time Summary:
+contracts     =   5.08 sec*proc (9 tests)
+foundation    =   3.61 sec*proc (8 tests)
+review        =   4.01 sec*proc (6 tests)
+
+Total Test time (real) =  16.63 sec

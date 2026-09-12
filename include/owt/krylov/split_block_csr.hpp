@@ -299,11 +299,10 @@ public:
             }
             for (std::size_t component = 0; component < block_size_;
                  ++component) {
-                correction[component] = omega_ * (T(2) - omega_)
-                    * correction[component]
-                    / diagonal_[reverse * block_size_ + component];
+                correction[component] /= diagonal_[reverse * block_size_ + component];
             }
         }
+        scale(omega_ * (T(2) - omega_), output);
     }
 
     [[nodiscard]] std::size_t numeric_updates() const noexcept

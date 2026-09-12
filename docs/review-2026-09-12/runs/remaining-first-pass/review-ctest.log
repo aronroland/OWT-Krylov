@@ -1,0 +1,52 @@
+Internal ctest changing into directory: /home/aron/git/OWT-Krylov/build-review
+Test project /home/aron/git/OWT-Krylov/build-review
+      Start  1: owt_krylov_core_tests
+ 1/21 Test  #1: owt_krylov_core_tests ..................   Passed    0.01 sec
+      Start  2: owt_krylov_foundation_norms
+ 2/21 Test  #2: owt_krylov_foundation_norms ............   Passed    0.00 sec
+      Start  3: owt_krylov_foundation_nonfinite
+ 3/21 Test  #3: owt_krylov_foundation_nonfinite ........   Passed    0.00 sec
+      Start  4: owt_krylov_foundation_pipelined_view
+ 4/21 Test  #4: owt_krylov_foundation_pipelined_view ...   Passed    0.01 sec
+      Start  5: owt_krylov_foundation_recycling
+ 5/21 Test  #5: owt_krylov_foundation_recycling ........   Passed    0.00 sec
+      Start  6: owt_krylov_foundation_timer
+ 6/21 Test  #6: owt_krylov_foundation_timer ............   Passed    0.00 sec
+      Start  7: review_nonfinite_norm
+ 7/21 Test  #7: review_nonfinite_norm ..................   Passed    0.00 sec
+      Start  8: review_large_norm
+ 8/21 Test  #8: review_large_norm ......................   Passed    0.00 sec
+      Start  9: review_small_norm
+ 9/21 Test  #9: review_small_norm ......................   Passed    0.00 sec
+      Start 10: review_nonfinite_solve
+10/21 Test #10: review_nonfinite_solve .................   Passed    0.00 sec
+      Start 11: review_recycled_view
+11/21 Test #11: review_recycled_view ...................   Passed    0.00 sec
+      Start 12: review_candidate_view
+12/21 Test #12: review_candidate_view ..................   Passed    0.00 sec
+      Start 13: review_ssor
+13/21 Test #13: review_ssor ............................   Passed    0.00 sec
+      Start 14: review_scaled_gmres
+14/21 Test #14: review_scaled_gmres ....................   Passed    0.00 sec
+      Start 15: review_scaled_bicgstab
+15/21 Test #15: review_scaled_bicgstab .................   Passed    0.00 sec
+      Start 16: review_ilu_pivot
+16/21 Test #16: review_ilu_pivot .......................   Passed    0.00 sec
+      Start 17: review_changed_recycle_operator
+17/21 Test #17: review_changed_recycle_operator ........   Passed    0.00 sec
+      Start 18: review_final_iteration
+18/21 Test #18: review_final_iteration .................   Passed    0.00 sec
+      Start 19: review_one_sync
+19/21 Test #19: review_one_sync ........................   Passed    0.00 sec
+      Start 20: review_send_buffer
+20/21 Test #20: review_send_buffer .....................   Passed    0.00 sec
+      Start 21: review_timer_no_elision
+21/21 Test #21: review_timer_no_elision ................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 21
+
+Label Time Summary:
+foundation    =   0.02 sec*proc (5 tests)
+review        =   0.05 sec*proc (15 tests)
+
+Total Test time (real) =   0.08 sec

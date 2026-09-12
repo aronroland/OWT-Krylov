@@ -532,8 +532,12 @@ template<std::floating_point T>
 [[nodiscard]] inline T convergence_threshold(T rhs_norm,
                                               const SolverOptions<T>& options)
 {
-    return std::max(options.absolute_tolerance,
-                    options.relative_tolerance * (rhs_norm > T(0) ? rhs_norm : T(1)));
+    const T relative_threshold = options.relative_tolerance
+        * (rhs_norm > T(0) ? rhs_norm : T(1));
+    if (!std::isfinite(rhs_norm) || !std::isfinite(relative_threshold)) {
+        return std::numeric_limits<T>::quiet_NaN();
+    }
+    return std::max(options.absolute_tolerance, relative_threshold);
 }
 
 template<std::floating_point T>

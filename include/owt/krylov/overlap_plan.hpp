@@ -73,6 +73,8 @@ public:
         , outer_ghost_nodes_(layout.ghost_nodes())
         , block_size_(layout.block_size())
         , depth_(depth)
+        , original_offsets_(local_matrix.row_offsets().begin(), local_matrix.row_offsets().end())
+        , original_columns_(local_matrix.column_indices().begin(), local_matrix.column_indices().end())
     {
         if (depth == 0) {
             throw std::invalid_argument("overlap depth must be positive");
@@ -217,10 +219,17 @@ private:
 
     void check_local_matrix(const BlockCsrMatrix<T, Index>& matrix) const
     {
-        if (matrix.owned_nodes() != outer_owned_nodes_
+        const int local_invalid = matrix.owned_nodes() != outer_owned_nodes_
             || matrix.ghost_nodes() != outer_ghost_nodes_
-            || matrix.block_size() != block_size_) {
-            throw std::invalid_argument("overlap numeric-update layout mismatch");
+            || matrix.block_size() != block_size_
+            || !std::equal(original_offsets_.begin(), original_offsets_.end(),
+                           matrix.row_offsets().begin(), matrix.row_offsets().end())
+            || !std::equal(original_columns_.begin(), original_columns_.end(),
+                           matrix.column_indices().begin(), matrix.column_indices().end());
+        int global_invalid = 0;
+        MPI_Allreduce(&local_invalid, &global_invalid, 1, MPI_INT, MPI_MAX, communicator_);
+        if (global_invalid != 0) {
+            throw std::invalid_argument("overlap numeric update requires unchanged CSR layout and pattern");
         }
     }
 
@@ -380,6 +389,12 @@ private:
                 static_cast<std::size_t>(local_matrix.row_offsets()[found->second + 1])
                 - static_cast<std::size_t>(local_matrix.row_offsets()[found->second]));
         }
+        int global_missing = 0;
+        MPI_Allreduce(&local_missing, &global_missing, 1, MPI_INT, MPI_MAX,
+                      communicator_);
+        if (global_missing != 0) {
+            throw std::invalid_argument("overlap request named a non-owned row");
+        }
         std::vector<std::uint64_t> requested_row_counts(requested_ids.size());
         MPI_Alltoallv(outgoing_row_counts.data(), request_receive_counts.data(),
                       request_receive_displacements.data(), MPI_UINT64_T,
@@ -502,12 +517,6 @@ private:
                 }
             }
         }
-        int global_missing = 0;
-        MPI_Allreduce(&local_missing, &global_missing, 1, MPI_INT, MPI_MAX,
-                      communicator_);
-        if (global_missing != 0) {
-            throw std::invalid_argument("overlap request named a non-owned row");
-        }
         return next_frontier;
     }
 
@@ -629,6 +638,8 @@ private:
     std::size_t outer_ghost_nodes_ = 0;
     std::size_t block_size_ = 0;
     std::size_t depth_ = 0;
+    std::vector<Index> original_offsets_;
+    std::vector<Index> original_columns_;
     std::vector<std::uint64_t> global_nodes_;
     std::vector<int> owners_;
     std::unordered_map<std::uint64_t, std::size_t> global_to_local_;

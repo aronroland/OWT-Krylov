@@ -140,16 +140,33 @@ template<std::floating_point T,
     SolverResult<T> result;
     detail::ScopedSolverTimer timer(result, options.collect_timings);
     const std::size_t s = options.idr_shadow_space;
-    if (detail::invalid_problem(rhs, solution, options)
-        || s == 0 || s > rhs.owned_size()) {
+    std::uint64_t dimension = rhs.owned_size();
+    bool invalid = detail::invalid_problem(rhs, solution, options) || s == 0;
+#ifdef OWT_KRYLOV_ENABLE_MPI
+    if constexpr (requires { reduction.communicator(); }) {
+        const std::uint64_t local[2] = {dimension, std::uint64_t(invalid)};
+        std::uint64_t global[2] = {};
+        MPI_Allreduce(local, global, 2, MPI_UINT64_T, MPI_SUM, reduction.communicator());
+        const std::uint64_t maximum = std::numeric_limits<std::uint64_t>::max();
+        const std::uint64_t local_s[2] = {s, maximum - s};
+        std::uint64_t limits[2] = {};
+        MPI_Allreduce(local_s, limits, 2, MPI_UINT64_T, MPI_MIN, reduction.communicator());
+        result.global_reductions += 2;
+        dimension = global[0];
+        invalid = global[1] != 0 || limits[0] != maximum - limits[1];
+    }
+#endif
+    if (invalid || s > dimension) {
         return result;
     }
     // IDR(1) is mathematically BiCGSTAB. Use the already guarded BiCGSTAB
     // recurrence instead of the less robust cyclic small-system formulation.
     if (s == 1) {
-        return bicgstab(linear_operator, rhs, solution, options,
+        auto solve_result = bicgstab(linear_operator, rhs, solution, options,
                         std::forward<Preconditioner>(preconditioner),
                         std::move(reduction));
+        solve_result.global_reductions += result.global_reductions;
+        return solve_result;
     }
 
     BlockVector<T> residual = rhs.clone_layout();
@@ -175,6 +192,10 @@ template<std::floating_point T,
     const T threshold = convergence_threshold(rhs_norm, options);
     result.initial_residual_norm = residual_norm;
     detail::set_residual_result(result, residual_norm, residual_norm, rhs_norm);
+    if (!std::isfinite(residual_norm) || !std::isfinite(threshold)) {
+        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+        return result;
+    }
     if (residual_norm <= threshold) {
         result.status = SolverStatus::converged;
         return result;

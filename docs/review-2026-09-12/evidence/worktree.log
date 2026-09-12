@@ -1,0 +1,8 @@
+ M .gitignore
+ M README.md
+ M tests/CMakeLists.txt
+?? docs/MANUAL.md
+?? docs/MANUAL.pdf
+?? docs/MANUAL.tex
+?? docs/review-2026-09-12/
+?? tests/review/

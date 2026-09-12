@@ -1,0 +1,17 @@
+[ 11%] Built target owt_krylov_core_tests
+[ 22%] Built target owt_krylov_mpi_tests
+[ 33%] Built target owt_krylov_partition_tests
+[ 38%] Building CXX object tests/review/CMakeFiles/owt_review_cases.dir/review_cases.cpp.o
+[ 44%] Linking CXX executable owt_review_cases
+[ 44%] Built target owt_review_cases
+[ 50%] Building CXX object tests/review/CMakeFiles/owt_review_timer.dir/review_cases.cpp.o
+[ 55%] Linking CXX executable owt_review_timer
+[ 55%] Built target owt_review_timer
+[ 61%] Building CXX object tests/review/CMakeFiles/owt_review_harmonic.dir/review_harmonic.cpp.o
+[ 66%] Linking CXX executable owt_review_harmonic
+[ 66%] Built target owt_review_harmonic
+[ 72%] Building CXX object tests/review/CMakeFiles/owt_review_mpi.dir/review_mpi.cpp.o
+[ 77%] Linking CXX executable owt_review_mpi
+[ 77%] Built target owt_review_mpi
+[ 88%] Built target owt_krylov_unstructured_benchmark
+[100%] Built target owt_krylov_distributed_benchmark

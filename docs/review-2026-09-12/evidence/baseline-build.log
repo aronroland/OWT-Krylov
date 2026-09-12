@@ -1,0 +1,15 @@
+[ 10%] Building CXX object tests/CMakeFiles/owt_krylov_core_tests.dir/test_core.cpp.o
+In file included from /home/aron/git/OWT-Krylov/tests/test_core.cpp:1:
+In file included from /home/aron/git/OWT-Krylov/include/owt/krylov/owt_krylov.hpp:18:
+In file included from /home/aron/git/OWT-Krylov/include/owt/krylov/petsc_adapter.hpp:8:
+In file included from /usr/lib/petscdir/petsc3.19/x86_64-linux-gnu-real/include/petscksp.h:7:
+In file included from /usr/lib/petscdir/petsc3.19/x86_64-linux-gnu-real/include/petscpc.h:7:
+In file included from /usr/lib/petscdir/petsc3.19/x86_64-linux-gnu-real/include/petscmat.h:7:
+In file included from /usr/lib/petscdir/petsc3.19/x86_64-linux-gnu-real/include/petscvec.h:9:
+/usr/lib/petscdir/petsc3.19/x86_64-linux-gnu-real/include/petscsys.h:99:6: error: "PETSc was configured with OpenMPI but now appears to be compiling using a non-OpenMPI mpi.h"
+   99 |     #error "PETSc was configured with OpenMPI but now appears to be compiling using a non-OpenMPI mpi.h"
+      |      ^
+1 error generated.
+gmake[2]: *** [tests/CMakeFiles/owt_krylov_core_tests.dir/build.make:76: tests/CMakeFiles/owt_krylov_core_tests.dir/test_core.cpp.o] Error 1
+gmake[1]: *** [CMakeFiles/Makefile2:122: tests/CMakeFiles/owt_krylov_core_tests.dir/all] Error 2
+gmake: *** [Makefile:146: all] Error 2

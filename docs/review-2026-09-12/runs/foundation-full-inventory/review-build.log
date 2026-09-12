@@ -1,0 +1,9 @@
+[ 20%] Built target owt_krylov_core_tests
+[ 30%] Building CXX object tests/CMakeFiles/owt_krylov_foundation_tests.dir/test_foundation.cpp.o
+[ 40%] Linking CXX executable owt_krylov_foundation_tests
+[ 40%] Built target owt_krylov_foundation_tests
+[ 50%] Building CXX object tests/CMakeFiles/owt_krylov_foundation_timer.dir/test_foundation.cpp.o
+[ 60%] Linking CXX executable owt_krylov_foundation_timer
+[ 60%] Built target owt_krylov_foundation_timer
+[ 80%] Built target owt_review_cases
+[100%] Built target owt_review_timer

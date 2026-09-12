@@ -1,0 +1,75 @@
+Internal ctest changing into directory: /home/aron/git/OWT-Krylov/build-review-mpi
+Test project /home/aron/git/OWT-Krylov/build-review-mpi
+      Start  1: owt_krylov_core_tests
+ 1/12 Test  #1: owt_krylov_core_tests ......................   Passed    0.02 sec
+      Start  2: owt_krylov_foundation_norms
+ 2/12 Test  #2: owt_krylov_foundation_norms ................***Failed    0.00 sec
+FAIL: norm lost finite magnitude or included ghost entries
+
+      Start  3: owt_krylov_foundation_nonfinite
+ 3/12 Test  #3: owt_krylov_foundation_nonfinite ............***Failed    0.00 sec
+FAIL: solver accepted a nonfinite problem
+
+      Start  4: owt_krylov_foundation_pipelined_view
+ 4/12 Test  #4: owt_krylov_foundation_pipelined_view .......   Passed    0.01 sec
+      Start  5: owt_krylov_foundation_recycling
+ 5/12 Test  #5: owt_krylov_foundation_recycling ............***Failed    0.00 sec
+FAIL: const candidate was mutated
+
+      Start  6: owt_krylov_foundation_timer
+ 6/12 Test  #6: owt_krylov_foundation_timer ................***Exception: SegFault  1.13 sec
+
+      Start  7: owt_krylov_foundation_mpi_norms
+ 7/12 Test  #7: owt_krylov_foundation_mpi_norms ............***Failed    2.19 sec
+rank=0 FAIL: norm lost finite magnitude or included ghost entries
+rank=1 FAIL: norm lost finite magnitude or included ghost entries
+--------------------------------------------------------------------------
+MPI_ABORT was invoked on rank 0 in communicator MPI_COMM_WORLD
+with errorcode 1.
+
+NOTE: invoking MPI_ABORT causes Open MPI to kill all MPI processes.
+You may or may not see output from other processes, depending on
+exactly when Open MPI kills them.
+--------------------------------------------------------------------------
+[t14s:3083136] 1 more process has sent help message help-mpi-api.txt / mpi-abort
+[t14s:3083136] Set MCA parameter "orte_base_help_aggregate" to 0 to see all help / error messages
+
+      Start  8: owt_krylov_foundation_mpi_nonfinite
+ 8/12 Test  #8: owt_krylov_foundation_mpi_nonfinite ........***Failed    1.15 sec
+rank=0 FAIL: solver accepted a nonfinite problem
+rank=1 FAIL: solver accepted a nonfinite problem
+--------------------------------------------------------------------------
+MPI_ABORT was invoked on rank 0 in communicator MPI_COMM_WORLD
+with errorcode 1.
+
+NOTE: invoking MPI_ABORT causes Open MPI to kill all MPI processes.
+You may or may not see output from other processes, depending on
+exactly when Open MPI kills them.
+--------------------------------------------------------------------------
+[t14s:3083197] 1 more process has sent help message help-mpi-api.txt / mpi-abort
+[t14s:3083197] Set MCA parameter "orte_base_help_aggregate" to 0 to see all help / error messages
+
+      Start  9: owt_krylov_foundation_mpi_pipelined_view
+ 9/12 Test  #9: owt_krylov_foundation_mpi_pipelined_view ...   Passed    1.21 sec
+      Start 10: owt_krylov_mpi_tests
+10/12 Test #10: owt_krylov_mpi_tests .......................   Passed    1.31 sec
+      Start 11: owt_krylov_partition_2_ranks
+11/12 Test #11: owt_krylov_partition_2_ranks ...............   Passed    1.26 sec
+      Start 12: owt_krylov_partition_4_ranks
+12/12 Test #12: owt_krylov_partition_4_ranks ...............   Passed    1.27 sec
+
+50% tests passed, 6 tests failed out of 12
+
+Label Time Summary:
+foundation    =   5.70 sec*proc (8 tests)
+
+Total Test time (real) =   9.56 sec
+
+The following tests FAILED:
+	  2 - owt_krylov_foundation_norms (Failed)
+	  3 - owt_krylov_foundation_nonfinite (Failed)
+	  5 - owt_krylov_foundation_recycling (Failed)
+	  6 - owt_krylov_foundation_timer (SEGFAULT)
+	  7 - owt_krylov_foundation_mpi_norms (Failed)
+	  8 - owt_krylov_foundation_mpi_nonfinite (Failed)
+Errors while running CTest

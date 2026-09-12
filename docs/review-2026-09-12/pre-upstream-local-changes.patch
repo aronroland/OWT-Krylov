@@ -1,0 +1,491 @@
+diff --git a/.gitignore b/.gitignore
+index b6be8c6..6daf71b 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -5,3 +5,13 @@
+ /CMakeFiles/
+ /Testing/
+ compile_commands.json
++
++# LaTeX build artifacts (docs/MANUAL.tex is the source; docs/MANUAL.pdf is committed)
++docs/.texbuild/
++docs/*.aux
++docs/*.log
++docs/*.out
++docs/*.toc
++docs/*.fls
++docs/*.fdb_latexmk
++docs/*.synctex.gz
+diff --git a/README.md b/README.md
+index e1ae719..6cfa64f 100644
+--- a/README.md
++++ b/README.md
+@@ -49,7 +49,14 @@ per unstructured-grid node.
+   edge coefficients, and the existing owned/ghost decomposition directly.
+ 
+ The detailed mapping is in
+-[SpecWave port matrix](docs/SPECWAVE_PORT_MATRIX.md).
++[SpecWave port matrix](docs/SPECWAVE_PORT_MATRIX.md). For the complete API
++reference and usage guide, see the manual
++([PDF](docs/MANUAL.pdf), [LaTeX source](docs/MANUAL.tex)):
++
++```bash
++pdflatex -output-directory=docs docs/MANUAL.tex   # run twice to settle
++pdflatex -output-directory=docs docs/MANUAL.tex   # the table of contents
++```
+ 
+ ## Build and test
+ 
+diff --git a/include/owt/krylov/core.hpp b/include/owt/krylov/core.hpp
+index b5bd224..93f0ca0 100644
+--- a/include/owt/krylov/core.hpp
++++ b/include/owt/krylov/core.hpp
+@@ -133,10 +133,10 @@ template<std::floating_point T>
+ class ScopedSolverTimer {
+ public:
+     ScopedSolverTimer(SolverResult<T>& result, bool enabled)
+-        : result_(&result), enabled_(enabled)
+     {
+-        if (enabled_) {
+-            result_->timings = std::make_shared<SolverTimings<T>>();
++        if (enabled) {
++            timings_ = std::make_shared<SolverTimings<T>>();
++            result.timings = timings_;
+             start_ = std::chrono::steady_clock::now();
+         }
+     }
+@@ -146,15 +146,15 @@ public:
+ 
+     ~ScopedSolverTimer()
+     {
+-        if (enabled_) {
+-            result_->timings->solve_seconds = std::chrono::duration<double>(
++        if (timings_) {
++            timings_->solve_seconds = std::chrono::duration<double>(
+                 std::chrono::steady_clock::now() - start_).count();
+         }
+     }
+ 
+ private:
+-    SolverResult<T>* result_;
+-    bool enabled_;
++    // The result may be moved before this scope exits (NRVO is optional).
++    std::shared_ptr<SolverTimings<T>> timings_;
+     std::chrono::steady_clock::time_point start_{};
+ };
+ 
+@@ -527,8 +527,12 @@ template<std::floating_point T>
+ [[nodiscard]] inline T convergence_threshold(T rhs_norm,
+                                               const SolverOptions<T>& options)
+ {
+-    return std::max(options.absolute_tolerance,
+-                    options.relative_tolerance * (rhs_norm > T(0) ? rhs_norm : T(1)));
++    const T relative_threshold = options.relative_tolerance
++        * (rhs_norm > T(0) ? rhs_norm : T(1));
++    if (!std::isfinite(rhs_norm) || !std::isfinite(relative_threshold)) {
++        return std::numeric_limits<T>::quiet_NaN();
++    }
++    return std::max(options.absolute_tolerance, relative_threshold);
+ }
+ 
+ template<std::floating_point T>
+diff --git a/include/owt/krylov/idrs.hpp b/include/owt/krylov/idrs.hpp
+index 663ffa7..7d20b02 100644
+--- a/include/owt/krylov/idrs.hpp
++++ b/include/owt/krylov/idrs.hpp
+@@ -157,6 +157,10 @@ template<std::floating_point T,
+     const T threshold = convergence_threshold(rhs_norm, options);
+     result.initial_residual_norm = residual_norm;
+     detail::set_residual_result(result, residual_norm, residual_norm, rhs_norm);
++    if (!std::isfinite(residual_norm) || !std::isfinite(threshold)) {
++        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
++        return result;
++    }
+     if (residual_norm <= threshold) {
+         result.status = SolverStatus::converged;
+         return result;
+diff --git a/include/owt/krylov/krylov_solvers.hpp b/include/owt/krylov/krylov_solvers.hpp
+index 1f5628a..6913e26 100644
+--- a/include/owt/krylov/krylov_solvers.hpp
++++ b/include/owt/krylov/krylov_solvers.hpp
+@@ -69,6 +69,21 @@ template<class Reduction, std::floating_point T>
+     return reduction.norm(vector);
+ }
+ 
++template<class Reduction, std::floating_point T>
++[[nodiscard]] T norm_from_squared(Reduction& reduction,
++                                  const BlockVector<T>& vector,
++                                  T squared_norm,
++                                  SolverResult<T>& result)
++{
++    if (std::isfinite(squared_norm)
++        && squared_norm >= std::numeric_limits<T>::min()) {
++        return std::sqrt(squared_norm);
++    }
++    // All ranks branch on the reduced value, including zero/underflow and NaN.
++    // Charge this exceptional extra reduction to the solver telemetry.
++    return norm(reduction, vector, result);
++}
++
+ template<std::floating_point T>
+ void set_residual_result(SolverResult<T>& result,
+                          T recursive_residual,
+@@ -150,6 +165,10 @@ template<std::floating_point T,
+     const T threshold = convergence_threshold(rhs_norm, options);
+     result.initial_residual_norm = initial_norm;
+     detail::set_residual_result(result, initial_norm, initial_norm, rhs_norm);
++    if (!std::isfinite(initial_norm) || !std::isfinite(threshold)) {
++        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
++        return result;
++    }
+     if (initial_norm <= threshold) {
+         if (arnoldi_snapshot != nullptr) {
+             arnoldi_snapshot->clear();
+@@ -216,7 +235,7 @@ template<std::floating_point T,
+             }
+ 
+             const T nonnegative_projected_norm_squared =
+-                std::max(T(0), projected_norm_squared);
++                std::max(projected_norm_squared, T(0));
+             const bool forced_reorthogonalization =
+                 options.gmres_orthogonalization
+                     == GmresOrthogonalization::iterated_classical_gram_schmidt;
+@@ -255,8 +274,18 @@ template<std::floating_point T,
+                     norm_squared -= correction * correction;
+                 }
+             }
+-            h(columns + 1, columns) =
+-                std::sqrt(std::max(T(0), norm_squared));
++            if (original_norm_squared < std::numeric_limits<T>::min()
++                || !std::isfinite(norm_squared)
++                || (norm_squared > T(0)
++                    && norm_squared < std::numeric_limits<T>::min())) {
++                h(columns + 1, columns) = detail::norm(reduction, work, result);
++            } else {
++                h(columns + 1, columns) = std::sqrt(std::max(norm_squared, T(0)));
++            }
++            if (!std::isfinite(h(columns + 1, columns))) {
++                detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
++                return result;
++            }
+             if (h(columns + 1, columns) > options.breakdown_tolerance) {
+                 copy_owned(work, basis[columns + 1]);
+                 scale(T(1) / h(columns + 1, columns), basis[columns + 1]);
+@@ -444,6 +473,10 @@ template<std::floating_point T,
+     const T scalar_tiny = T(1024) * std::numeric_limits<T>::min();
+     result.initial_residual_norm = initial_norm;
+     detail::set_residual_result(result, initial_norm, initial_norm, rhs_norm);
++    if (!std::isfinite(initial_norm) || !std::isfinite(threshold)) {
++        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
++        return result;
++    }
+     if (initial_norm <= threshold) {
+         result.status = SolverStatus::converged;
+         return result;
+diff --git a/include/owt/krylov/pipelined_bicgstab.hpp b/include/owt/krylov/pipelined_bicgstab.hpp
+index 3246160..5f656bb 100644
+--- a/include/owt/krylov/pipelined_bicgstab.hpp
++++ b/include/owt/krylov/pipelined_bicgstab.hpp
+@@ -61,12 +61,16 @@ template<std::floating_point T,
+     std::array<T, 2> global_norms{};
+     reduction.sum(local_norms, global_norms);
+     ++result.global_reductions;
+-    const T rhs_norm = std::sqrt(std::max(T(0), global_norms[0]));
+-    T residual_norm = std::sqrt(std::max(T(0), global_norms[1]));
++    const T rhs_norm = detail::norm_from_squared(reduction, rhs, global_norms[0], result);
++    T residual_norm = detail::norm_from_squared(reduction, residual, global_norms[1], result);
+     const T threshold = convergence_threshold(rhs_norm, options);
+     const T scalar_tiny = T(1024) * std::numeric_limits<T>::min();
+     result.initial_residual_norm = residual_norm;
+     detail::set_residual_result(result, residual_norm, residual_norm, rhs_norm);
++    if (!std::isfinite(residual_norm) || !std::isfinite(threshold)) {
++        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
++        return result;
++    }
+     if (residual_norm <= threshold) {
+         result.status = SolverStatus::converged;
+         return result;
+@@ -129,8 +133,8 @@ template<std::floating_point T,
+             std::array<T, 1> global_intermediate_norm{};
+             reduction.sum(local_intermediate_norm, global_intermediate_norm);
+             ++result.global_reductions;
+-            const T intermediate_norm =
+-                std::sqrt(std::max(T(0), global_intermediate_norm[0]));
++            const T intermediate_norm = detail::norm_from_squared(
++                reduction, intermediate, global_intermediate_norm[0], result);
+             if (intermediate_norm <= threshold) {
+                 axpy(alpha, preconditioned_search, solution);
+                 detail::true_residual(linear_operator, rhs, solution, residual,
+@@ -172,7 +176,7 @@ template<std::floating_point T,
+ 
+         const T previous_rho = rho;
+         rho = global_next[0];
+-        residual_norm = std::sqrt(std::max(T(0), global_next[1]));
++        residual_norm = detail::norm_from_squared(reduction, residual, global_next[1], result);
+         result.recursive_residual_norm = residual_norm;
+         if (residual_norm <= threshold) {
+             detail::true_residual(linear_operator, rhs, solution, residual,
+@@ -328,12 +332,16 @@ template<std::floating_point T,
+     std::array<T, 2> global_norms{};
+     reduction.sum(local_norms, global_norms);
+     ++result.global_reductions;
+-    const T rhs_norm = std::sqrt(std::max(T(0), global_norms[0]));
+-    T residual_norm = std::sqrt(std::max(T(0), global_norms[1]));
++    const T rhs_norm = detail::norm_from_squared(reduction, rhs, global_norms[0], result);
++    T residual_norm = detail::norm_from_squared(reduction, r, global_norms[1], result);
+     const T threshold = convergence_threshold(rhs_norm, options);
+     const T scalar_tiny = T(1024) * std::numeric_limits<T>::min();
+     result.initial_residual_norm = residual_norm;
+     detail::set_residual_result(result, residual_norm, residual_norm, rhs_norm);
++    if (!std::isfinite(residual_norm) || !std::isfinite(threshold)) {
++        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
++        return result;
++    }
+     if (residual_norm <= threshold) {
+         result.status = SolverStatus::converged;
+         return result;
+@@ -420,7 +428,7 @@ template<std::floating_point T,
+             std::array<T, 1> global_qnorm{};
+             reduction.sum(local_qnorm, global_qnorm);
+             ++result.global_reductions;
+-            if (std::sqrt(std::max(T(0), global_qnorm[0])) <= threshold) {
++            if (detail::norm_from_squared(reduction, q, global_qnorm[0], result) <= threshold) {
+                 axpy(alpha, p2, solution);
+                 detail::true_residual(linear_operator, rhs, solution, r,
+                                       operator_work, result);
+@@ -467,7 +475,7 @@ template<std::floating_point T,
+         detail::apply_operator(linear_operator, w2, t, result);
+         reduction.end(second_request);
+ 
+-        residual_norm = std::sqrt(std::max(T(0), global_second[0]));
++        residual_norm = detail::norm_from_squared(reduction, r, global_second[0], result);
+         rho = global_second[1];
+         result.recursive_residual_norm = residual_norm;
+         if (residual_norm <= threshold) {
+diff --git a/include/owt/krylov/recycling.hpp b/include/owt/krylov/recycling.hpp
+index c00c929..b6a5044 100644
+--- a/include/owt/krylov/recycling.hpp
++++ b/include/owt/krylov/recycling.hpp
+@@ -70,7 +70,8 @@ public:
+                            T(128) * std::numeric_limits<T>::epsilon())
+     {
+         check_layout(candidate);
+-        BlockVector<T> new_vector = candidate;
++        BlockVector<T> new_vector = candidate.clone_layout();
++        copy_owned(candidate, new_vector);
+         BlockVector<T> new_image = candidate.clone_layout();
+         linear_operator.apply(new_vector, new_image);
+         if (telemetry != nullptr) {
+@@ -289,7 +290,8 @@ template<std::floating_point T,
+     ArnoldiSnapshot<T>* arnoldi_snapshot = nullptr)
+ {
+     SolverResult<T> projection_telemetry;
+-    BlockVector<T> initial_solution = solution;
++    BlockVector<T> initial_solution = solution.clone_layout();
++    copy_owned(solution, initial_solution);
+     BlockVector<T> residual = rhs.clone_layout();
+     BlockVector<T> work = rhs.clone_layout();
+     if (!recycle_space.empty()) {
+@@ -321,7 +323,8 @@ template<std::floating_point T,
+         + projected_preconditioner.additional_global_reductions();
+ 
+     if (update_recycle_space && result.converged()) {
+-        BlockVector<T> correction = solution;
++        BlockVector<T> correction = solution.clone_layout();
++        copy_owned(solution, correction);
+         for (std::size_t i = 0; i < solution.owned_size(); ++i) {
+             correction.data()[i] -= initial_solution.data()[i];
+         }
+diff --git a/include/owt/krylov/reduction.hpp b/include/owt/krylov/reduction.hpp
+index c959bf2..114b6c9 100644
+--- a/include/owt/krylov/reduction.hpp
++++ b/include/owt/krylov/reduction.hpp
+@@ -21,6 +21,47 @@
+ 
+ namespace owt::krylov {
+ 
++namespace detail {
++
++template<std::floating_point Accumulator, std::floating_point T>
++[[nodiscard]] Accumulator scaled_norm(const BlockVector<T>& vector)
++{
++    Accumulator scale = 0;
++    for (const T value : vector.owned()) {
++        const Accumulator magnitude = std::abs(static_cast<Accumulator>(value));
++        if (std::isnan(magnitude)) {
++            return std::numeric_limits<Accumulator>::quiet_NaN();
++        }
++        scale = std::max(scale, magnitude);
++    }
++    if (scale == Accumulator(0) || std::isinf(scale)) {
++        return scale;
++    }
++    // Scale before squaring; compensated terms are bounded by one.
++    Accumulator sum = 0;
++    Accumulator correction = 0;
++    for (const T value : vector.owned()) {
++        const Accumulator ratio = static_cast<Accumulator>(value) / scale;
++        const Accumulator term = ratio * ratio;
++        const Accumulator updated = sum + term;
++        correction += sum >= term ? (sum - updated) + term : (term - updated) + sum;
++        sum = updated;
++    }
++    return scale * std::sqrt(sum + correction);
++}
++
++template<std::floating_point T>
++[[nodiscard]] T combine_norms(T first, T second) noexcept
++{
++    // std::hypot(infinity, NaN) may return infinity; invalid data must survive.
++    if (std::isnan(first) || std::isnan(second)) {
++        return std::numeric_limits<T>::quiet_NaN();
++    }
++    return std::hypot(first, second);
++}
++
++} // namespace detail
++
+ template<std::floating_point T>
+ class SerialReduction {
+ public:
+@@ -52,7 +93,7 @@ public:
+ 
+     [[nodiscard]] T norm(const BlockVector<T>& vector) const
+     {
+-        return std::sqrt(std::max(T(0), dot(vector, vector)));
++        return detail::scaled_norm<T>(vector);
+     }
+ 
+     void sum(std::span<const T> local, std::span<T> global) const
+@@ -105,7 +146,7 @@ public:
+ 
+     [[nodiscard]] T norm(const BlockVector<T>& vector) const
+     {
+-        return std::sqrt(std::max(T(0), dot(vector, vector)));
++        return static_cast<T>(detail::scaled_norm<long double>(vector));
+     }
+ 
+     void sum(std::span<const T> local, std::span<T> global) const
+@@ -138,6 +179,36 @@ inline MPI_Datatype mpi_type<float>() { return MPI_FLOAT; }
+ 
+ template<>
+ inline MPI_Datatype mpi_type<double>() { return MPI_DOUBLE; }
++
++template<std::floating_point T>
++void mpi_combine_norms(void* input, void* output, int* count, MPI_Datatype*) noexcept
++{
++    const auto* in = static_cast<const T*>(input);
++    auto* out = static_cast<T*>(output);
++    for (int i = 0; i < *count; ++i) {
++        out[i] = combine_norms(in[i], out[i]);
++    }
++}
++
++template<std::floating_point Accumulator, std::floating_point T>
++[[nodiscard]] T mpi_norm(const BlockVector<T>& vector, MPI_Comm communicator)
++{
++    const Accumulator local = scaled_norm<Accumulator>(vector);
++    Accumulator global = 0;
++    // One collective, with no squaring of unscaled local or global norms.
++    // Keep the operation lifetime within MPI's lifetime, not a static destructor.
++    MPI_Op operation = MPI_OP_NULL;
++    if (MPI_Op_create(mpi_combine_norms<Accumulator>, 1, &operation) != MPI_SUCCESS) {
++        throw std::runtime_error("could not create MPI norm operation");
++    }
++    const int status = MPI_Allreduce(&local, &global, 1, mpi_type<Accumulator>(),
++                                     operation, communicator);
++    MPI_Op_free(&operation);
++    if (status != MPI_SUCCESS) {
++        throw std::runtime_error("MPI norm reduction failed");
++    }
++    return static_cast<T>(global);
++}
+ } // namespace detail
+ 
+ template<std::floating_point T>
+@@ -168,7 +239,7 @@ public:
+ 
+     [[nodiscard]] T norm(const BlockVector<T>& vector) const
+     {
+-        return std::sqrt(std::max(T(0), dot(vector, vector)));
++        return detail::mpi_norm<T>(vector, communicator_);
+     }
+ 
+     void sum(std::span<const T> local, std::span<T> global) const
+@@ -240,7 +311,21 @@ public:
+ 
+     [[nodiscard]] T norm(const BlockVector<T>& vector) const
+     {
+-        return std::sqrt(std::max(T(0), dot(vector, vector)));
++        const T local = serial_.norm(vector);
++        T global = T(0);
++        if (rank_ == 0) {
++            gathered_.resize(static_cast<std::size_t>(rank_count_));
++        }
++        MPI_Gather(&local, 1, detail::mpi_type<T>(),
++                   rank_ == 0 ? gathered_.data() : nullptr, 1,
++                   detail::mpi_type<T>(), 0, communicator_);
++        if (rank_ == 0) {
++            for (const T value : gathered_) {
++                global = detail::combine_norms(global, value);
++            }
++        }
++        MPI_Bcast(&global, 1, detail::mpi_type<T>(), 0, communicator_);
++        return global;
+     }
+ 
+     void sum(std::span<const T> local, std::span<T> global) const
+@@ -332,7 +417,7 @@ public:
+ 
+     [[nodiscard]] T norm(const BlockVector<T>& vector) const
+     {
+-        return std::sqrt(std::max(T(0), dot(vector, vector)));
++        return detail::mpi_norm<double>(vector, communicator_);
+     }
+ 
+     void sum(std::span<const T> local, std::span<T> global) const
+diff --git a/tests/CMakeLists.txt b/tests/CMakeLists.txt
+index 87a58d1..03d7219 100644
+--- a/tests/CMakeLists.txt
++++ b/tests/CMakeLists.txt
+@@ -7,7 +7,40 @@ target_compile_options(
+ )
+ add_test(NAME owt_krylov_core_tests COMMAND owt_krylov_core_tests)
+ 
++add_executable(owt_krylov_foundation_tests test_foundation.cpp)
++target_link_libraries(owt_krylov_foundation_tests PRIVATE OWT::Krylov)
++foreach(case IN ITEMS norms nonfinite pipelined_view recycling)
++    add_test(NAME owt_krylov_foundation_${case}
++        COMMAND owt_krylov_foundation_tests ${case})
++    set_tests_properties(owt_krylov_foundation_${case}
++        PROPERTIES LABELS foundation TIMEOUT 30)
++endforeach()
++if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
++    add_executable(owt_krylov_foundation_timer test_foundation.cpp)
++    target_link_libraries(owt_krylov_foundation_timer PRIVATE OWT::Krylov)
++    target_compile_options(owt_krylov_foundation_timer PRIVATE -fno-elide-constructors)
++    add_test(NAME owt_krylov_foundation_timer
++        COMMAND owt_krylov_foundation_timer timer)
++    set_tests_properties(owt_krylov_foundation_timer
++        PROPERTIES LABELS foundation TIMEOUT 30)
++endif()
++
++option(OWT_KRYLOV_BUILD_REVIEW_TESTS "Build numerical review regression cases" OFF)
++if(OWT_KRYLOV_BUILD_REVIEW_TESTS)
++    add_subdirectory(review)
++endif()
++
+ if(OWT_KRYLOV_ENABLE_MPI)
++    add_executable(owt_krylov_foundation_mpi test_foundation.cpp)
++    target_link_libraries(owt_krylov_foundation_mpi PRIVATE OWT::Krylov)
++    target_compile_definitions(owt_krylov_foundation_mpi PRIVATE OWT_FOUNDATION_MPI=1)
++    foreach(case IN ITEMS norms nonfinite pipelined_view)
++        add_test(NAME owt_krylov_foundation_mpi_${case}
++            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
++                    $<TARGET_FILE:owt_krylov_foundation_mpi> ${case})
++        set_tests_properties(owt_krylov_foundation_mpi_${case}
++            PROPERTIES LABELS foundation TIMEOUT 30)
++    endforeach()
+     add_executable(owt_krylov_mpi_tests test_mpi.cpp)
+     target_link_libraries(owt_krylov_mpi_tests PRIVATE OWT::Krylov)
+     target_compile_options(

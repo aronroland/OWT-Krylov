@@ -69,6 +69,21 @@ template<class Reduction, std::floating_point T>
     return reduction.norm(vector);
 }
 
+template<class Reduction, std::floating_point T>
+[[nodiscard]] T norm_from_squared(Reduction& reduction,
+                                  const BlockVector<T>& vector,
+                                  T squared_norm,
+                                  SolverResult<T>& result)
+{
+    if (std::isfinite(squared_norm)
+        && squared_norm >= std::numeric_limits<T>::min()) {
+        return std::sqrt(squared_norm);
+    }
+    // All ranks branch on the reduced value, including zero/underflow and NaN.
+    // Charge this exceptional extra reduction to the solver telemetry.
+    return norm(reduction, vector, result);
+}
+
 template<std::floating_point T>
 void set_residual_result(SolverResult<T>& result,
                          T recursive_residual,
@@ -150,6 +165,10 @@ template<std::floating_point T,
     const T threshold = convergence_threshold(rhs_norm, options);
     result.initial_residual_norm = initial_norm;
     detail::set_residual_result(result, initial_norm, initial_norm, rhs_norm);
+    if (!std::isfinite(initial_norm) || !std::isfinite(threshold)) {
+        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+        return result;
+    }
     if (initial_norm <= threshold) {
         if (arnoldi_snapshot != nullptr) {
             arnoldi_snapshot->clear();
@@ -166,8 +185,10 @@ template<std::floating_point T,
         workspace.scalars(projected_rhs_offset, restart + 1);
     // Scratch for two-synchronization iterated classical Gram-Schmidt. The
     // final slot in the second batch carries ||w||^2.
-    const std::span<T> local_orthogonalization =
-        workspace.scalars(local_orthogonalization_offset, restart + 2);
+    using LocalScalar = detail::local_scalar_t<Reduction, T>;
+    detail::LocalReductionBuffer<Reduction, T> local_buffer(
+        workspace.scalars(local_orthogonalization_offset, restart + 2));
+    const std::span<LocalScalar> local_orthogonalization = local_buffer.values();
     const std::span<T> global_orthogonalization =
         workspace.scalars(global_orthogonalization_offset, restart + 2);
     auto h = [&](std::size_t row, std::size_t column) -> T& {
@@ -203,7 +224,7 @@ template<std::floating_point T,
             local_orthogonalization[basis_count] =
                 reduction.local_dot(work, work);
             reduction.sum(
-                std::span<const T>(local_orthogonalization.data(), basis_count + 1),
+                std::span<const LocalScalar>(local_orthogonalization.data(), basis_count + 1),
                 std::span<T>(global_orthogonalization.data(), basis_count + 1));
             ++result.global_reductions;
             const T original_norm_squared =
@@ -216,7 +237,7 @@ template<std::floating_point T,
             }
 
             const T nonnegative_projected_norm_squared =
-                std::max(T(0), projected_norm_squared);
+                std::max(projected_norm_squared, T(0));
             const bool forced_reorthogonalization =
                 options.gmres_orthogonalization
                     == GmresOrthogonalization::iterated_classical_gram_schmidt;
@@ -241,7 +262,7 @@ template<std::floating_point T,
                 local_orthogonalization[basis_count] =
                     reduction.local_dot(work, work);
                 reduction.sum(
-                    std::span<const T>(local_orthogonalization.data(),
+                    std::span<const LocalScalar>(local_orthogonalization.data(),
                                        basis_count + 1),
                     std::span<T>(global_orthogonalization.data(),
                                  basis_count + 1));
@@ -255,9 +276,23 @@ template<std::floating_point T,
                     norm_squared -= correction * correction;
                 }
             }
-            h(columns + 1, columns) =
-                std::sqrt(std::max(T(0), norm_squared));
-            if (h(columns + 1, columns) > options.breakdown_tolerance) {
+            if (original_norm_squared < std::numeric_limits<T>::min()
+                || !std::isfinite(norm_squared)
+                || (norm_squared > T(0)
+                    && norm_squared < std::numeric_limits<T>::min())) {
+                h(columns + 1, columns) = detail::norm(reduction, work, result);
+            } else {
+                h(columns + 1, columns) = std::sqrt(std::max(norm_squared, T(0)));
+            }
+            if (!std::isfinite(h(columns + 1, columns))) {
+                detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+                return result;
+            }
+            T column_scale = T(0);
+            for (std::size_t row = 0; row <= columns + 1; ++row) {
+                column_scale = std::max(column_scale, std::abs(h(row, columns)));
+            }
+            if (h(columns + 1, columns) > options.breakdown_tolerance * column_scale) {
                 copy_owned(work, basis[columns + 1]);
                 scale(T(1) / h(columns + 1, columns), basis[columns + 1]);
             } else {
@@ -282,7 +317,11 @@ template<std::floating_point T,
 
             const T denominator = std::hypot(h(columns, columns),
                                              h(columns + 1, columns));
-            if (denominator <= options.breakdown_tolerance) {
+            if (!std::isfinite(denominator)) {
+                detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+                return result;
+            }
+            if (denominator == T(0)) {
                 arnoldi_breakdown = true;
                 cosine[columns] = T(1);
                 sine[columns] = T(0);
@@ -309,17 +348,19 @@ template<std::floating_point T,
             arnoldi_snapshot->finish_cycle(preconditioned_basis, columns);
         }
 
-        std::fill(local_orthogonalization.begin(),
-                  local_orthogonalization.begin()
-                      + static_cast<std::ptrdiff_t>(columns), T(0));
         const std::span<T> coefficients =
-            local_orthogonalization.first(columns);
+            workspace.scalars(local_orthogonalization_offset, columns);
+        std::fill(coefficients.begin(), coefficients.end(), T(0));
         for (std::size_t reverse = columns; reverse-- > 0;) {
             T value = projected_rhs[reverse];
             for (std::size_t column = reverse + 1; column < columns; ++column) {
                 value -= h(reverse, column) * coefficients[column];
             }
-            if (std::abs(h(reverse, reverse)) <= options.breakdown_tolerance) {
+            T column_scale = T(0);
+            for (std::size_t row = 0; row <= reverse; ++row) {
+                column_scale = std::max(column_scale, std::abs(h(row, reverse)));
+            }
+            if (std::abs(h(reverse, reverse)) <= options.breakdown_tolerance * column_scale) {
                 detail::mark_breakdown(
                     result, BreakdownReason::singular_projected_system);
                 return result;
@@ -444,6 +485,10 @@ template<std::floating_point T,
     const T scalar_tiny = T(1024) * std::numeric_limits<T>::min();
     result.initial_residual_norm = initial_norm;
     detail::set_residual_result(result, initial_norm, initial_norm, rhs_norm);
+    if (!std::isfinite(initial_norm) || !std::isfinite(threshold)) {
+        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+        return result;
+    }
     if (initial_norm <= threshold) {
         result.status = SolverStatus::converged;
         return result;
@@ -543,7 +588,11 @@ template<std::floating_point T,
             return result;
         }
         omega = numerator / denominator;
-        if (!std::isfinite(omega) || std::abs(omega) <= options.breakdown_tolerance) {
+        // Omega has units of inverse A; test the dimensionless angle instead.
+        const T stabilization_angle = std::abs(numerator)
+            / std::sqrt(denominator) / intermediate_norm;
+        if (!std::isfinite(omega) || omega == T(0)
+            || stabilization_angle <= options.breakdown_tolerance) {
             detail::mark_breakdown(
                 result, std::isfinite(omega)
                     ? BreakdownReason::omega_zero
@@ -584,7 +633,11 @@ template<std::floating_point T,
     const T true_norm = detail::norm(reduction, residual, result);
     detail::set_residual_result(result, result.recursive_residual_norm,
                                 true_norm, rhs_norm);
-    result.status = SolverStatus::maximum_iterations;
+    result.status = true_norm <= threshold
+        ? SolverStatus::converged : SolverStatus::maximum_iterations;
+    if (!std::isfinite(true_norm)) {
+        detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+    }
     return result;
 }
 

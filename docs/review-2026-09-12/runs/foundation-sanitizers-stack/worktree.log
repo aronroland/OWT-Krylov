@@ -1,0 +1,18 @@
+ M .gitignore
+ M README.md
+ M include/owt/krylov/core.hpp
+ M include/owt/krylov/idrs.hpp
+ M include/owt/krylov/krylov_solvers.hpp
+ M include/owt/krylov/pipelined_bicgstab.hpp
+ M include/owt/krylov/recycling.hpp
+ M include/owt/krylov/reduction.hpp
+ M tests/CMakeLists.txt
+?? docs/APPLICATION_REVIEW_TRITON_ADH.md
+?? docs/FOUNDATION_PATCH_STATUS.md
+?? docs/MANUAL.md
+?? docs/MANUAL.pdf
+?? docs/MANUAL.tex
+?? docs/REVIEW_AND_IMPROVEMENT_PLAN.md
+?? docs/review-2026-09-12/
+?? tests/review/
+?? tests/test_foundation.cpp

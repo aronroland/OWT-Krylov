@@ -1,0 +1,7 @@
+[ 33%] Built target owt_krylov_core_tests
+[ 50%] Building CXX object tests/review/CMakeFiles/owt_review_cases.dir/review_cases.cpp.o
+[ 66%] Linking CXX executable owt_review_cases
+[ 66%] Built target owt_review_cases
+[ 83%] Building CXX object tests/review/CMakeFiles/owt_review_timer.dir/review_cases.cpp.o
+[100%] Linking CXX executable owt_review_timer
+[100%] Built target owt_review_timer

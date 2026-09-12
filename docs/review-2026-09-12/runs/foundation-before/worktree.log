@@ -1,0 +1,11 @@
+ M .gitignore
+ M README.md
+ M tests/CMakeLists.txt
+?? docs/APPLICATION_REVIEW_TRITON_ADH.md
+?? docs/MANUAL.md
+?? docs/MANUAL.pdf
+?? docs/MANUAL.tex
+?? docs/REVIEW_AND_IMPROVEMENT_PLAN.md
+?? docs/review-2026-09-12/
+?? tests/review/
+?? tests/test_foundation.cpp

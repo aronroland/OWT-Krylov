@@ -1,0 +1,42 @@
+[  3%] Building CXX object tests/CMakeFiles/owt_krylov_core_tests.dir/test_core.cpp.o
+[  7%] Linking CXX executable owt_krylov_core_tests
+[  7%] Built target owt_krylov_core_tests
+[ 10%] Building CXX object tests/CMakeFiles/owt_krylov_foundation_tests.dir/test_foundation.cpp.o
+[ 14%] Linking CXX executable owt_krylov_foundation_tests
+[ 14%] Built target owt_krylov_foundation_tests
+[ 17%] Building CXX object tests/CMakeFiles/owt_krylov_foundation_timer.dir/test_foundation.cpp.o
+[ 21%] Linking CXX executable owt_krylov_foundation_timer
+[ 21%] Built target owt_krylov_foundation_timer
+[ 25%] Building CXX object tests/CMakeFiles/owt_krylov_contract_tests.dir/review/review_contracts.cpp.o
+[ 28%] Linking CXX executable owt_krylov_contract_tests
+[ 28%] Built target owt_krylov_contract_tests
+[ 32%] Building CXX object tests/CMakeFiles/owt_krylov_mpi_contract_tests.dir/review/review_mpi_contracts.cpp.o
+[ 35%] Linking CXX executable owt_krylov_mpi_contract_tests
+[ 35%] Built target owt_krylov_mpi_contract_tests
+[ 39%] Building CXX object tests/CMakeFiles/owt_krylov_foundation_mpi.dir/test_foundation.cpp.o
+[ 42%] Linking CXX executable owt_krylov_foundation_mpi
+[ 42%] Built target owt_krylov_foundation_mpi
+[ 46%] Building CXX object tests/CMakeFiles/owt_krylov_mpi_tests.dir/test_mpi.cpp.o
+[ 50%] Linking CXX executable owt_krylov_mpi_tests
+[ 50%] Built target owt_krylov_mpi_tests
+[ 53%] Building CXX object tests/CMakeFiles/owt_krylov_partition_tests.dir/test_mpi_partitions.cpp.o
+[ 57%] Linking CXX executable owt_krylov_partition_tests
+[ 57%] Built target owt_krylov_partition_tests
+[ 60%] Building CXX object tests/review/CMakeFiles/owt_review_cases.dir/review_cases.cpp.o
+[ 64%] Linking CXX executable owt_review_cases
+[ 64%] Built target owt_review_cases
+[ 67%] Building CXX object tests/review/CMakeFiles/owt_review_timer.dir/review_cases.cpp.o
+[ 71%] Linking CXX executable owt_review_timer
+[ 71%] Built target owt_review_timer
+[ 75%] Building CXX object tests/review/CMakeFiles/owt_review_harmonic.dir/review_harmonic.cpp.o
+[ 78%] Linking CXX executable owt_review_harmonic
+[ 78%] Built target owt_review_harmonic
+[ 82%] Building CXX object tests/review/CMakeFiles/owt_review_mpi.dir/review_mpi.cpp.o
+[ 85%] Linking CXX executable owt_review_mpi
+[ 85%] Built target owt_review_mpi
+[ 89%] Building CXX object benchmarks/CMakeFiles/owt_krylov_unstructured_benchmark.dir/benchmark_unstructured.cpp.o
+[ 92%] Linking CXX executable owt_krylov_unstructured_benchmark
+[ 92%] Built target owt_krylov_unstructured_benchmark
+[ 96%] Building CXX object benchmarks/CMakeFiles/owt_krylov_distributed_benchmark.dir/benchmark_distributed.cpp.o
+[100%] Linking CXX executable owt_krylov_distributed_benchmark
+[100%] Built target owt_krylov_distributed_benchmark

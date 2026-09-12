@@ -1,0 +1,3 @@
+solver,iterations,reductions,setup_seconds,update_seconds,solve_seconds,true_residual,status
+owt-gmres-jacobi,32,70,0,0,0.001803912,1.69729469891e-08,converged
+petsc-gmres-jacobi,32,0,0.001048596,0.000246986,0.007304623,1.69729461715e-08,converged

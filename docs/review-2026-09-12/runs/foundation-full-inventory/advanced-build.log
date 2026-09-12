@@ -1,0 +1,18 @@
+[  8%] Built target owt_krylov_core_tests
+[ 12%] Building CXX object tests/CMakeFiles/owt_krylov_foundation_tests.dir/test_foundation.cpp.o
+[ 16%] Linking CXX executable owt_krylov_foundation_tests
+[ 16%] Built target owt_krylov_foundation_tests
+[ 20%] Building CXX object tests/CMakeFiles/owt_krylov_foundation_timer.dir/test_foundation.cpp.o
+[ 25%] Linking CXX executable owt_krylov_foundation_timer
+[ 25%] Built target owt_krylov_foundation_timer
+[ 29%] Building CXX object tests/CMakeFiles/owt_krylov_foundation_mpi.dir/test_foundation.cpp.o
+[ 33%] Linking CXX executable owt_krylov_foundation_mpi
+[ 33%] Built target owt_krylov_foundation_mpi
+[ 41%] Built target owt_krylov_mpi_tests
+[ 50%] Built target owt_krylov_partition_tests
+[ 58%] Built target owt_review_cases
+[ 66%] Built target owt_review_timer
+[ 75%] Built target owt_review_harmonic
+[ 83%] Built target owt_review_mpi
+[ 91%] Built target owt_krylov_unstructured_benchmark
+[100%] Built target owt_krylov_distributed_benchmark

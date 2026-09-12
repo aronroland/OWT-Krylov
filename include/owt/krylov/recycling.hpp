@@ -57,6 +57,18 @@ public:
         return images_.at(index);
     }
 
+    /** Refresh C=A*U and its orthonormalization after an operator update. */
+    template<class Operator, class Reduction>
+    void refresh(Operator& linear_operator, Reduction& reduction,
+                 SolverResult<T>* telemetry = nullptr)
+    {
+        RecycleSpace refreshed(maximum_vectors_);
+        for (const auto& candidate : vectors_) {
+            refreshed.add_candidate(linear_operator, candidate, reduction, telemetry);
+        }
+        *this = std::move(refreshed);
+    }
+
     /**
      * Add and A-orthonormalize a candidate. Returns false when the candidate
      * is numerically contained in the current space.
@@ -70,21 +82,27 @@ public:
                            T(128) * std::numeric_limits<T>::epsilon())
     {
         check_layout(candidate);
-        BlockVector<T> new_vector = candidate;
+        BlockVector<T> new_vector = candidate.clone_layout();
+        copy_owned(candidate, new_vector);
         BlockVector<T> new_image = candidate.clone_layout();
         linear_operator.apply(new_vector, new_image);
         if (telemetry != nullptr) {
             ++telemetry->operator_applications;
         }
+        const T original_norm = reduction.norm(new_image);
+        if (telemetry != nullptr) ++telemetry->global_reductions;
+        if (!std::isfinite(original_norm) || original_norm == T(0)) return false;
 
         resize_coefficient_storage();
-        if (!images_.empty()) {
+        for (int pass = 0; pass < 2 && !images_.empty(); ++pass) {
+            detail::LocalReductionBuffer<Reduction, T> buffer(local_coefficients_);
+            auto local = buffer.values().first(images_.size());
             for (std::size_t i = 0; i < images_.size(); ++i) {
-                local_coefficients_[i] = reduction.local_dot(
+                local[i] = reduction.local_dot(
                     images_[i], new_image);
             }
             reduction.sum(
-                std::span<const T>(local_coefficients_.data(), images_.size()),
+                std::span<const detail::local_scalar_t<Reduction, T>>(local),
                 std::span<T>(global_coefficients_.data(), images_.size()));
             if (telemetry != nullptr) {
                 ++telemetry->global_reductions;
@@ -98,7 +116,8 @@ public:
         if (telemetry != nullptr) {
             ++telemetry->global_reductions;
         }
-        if (!std::isfinite(norm) || norm <= dependence_tolerance) {
+        if (!std::isfinite(norm) || norm == T(0)
+            || norm / original_norm <= dependence_tolerance) {
             return false;
         }
         scale(T(1) / norm, new_image);
@@ -127,11 +146,13 @@ public:
             return;
         }
         resize_coefficient_storage();
+        detail::LocalReductionBuffer<Reduction, T> buffer(local_coefficients_);
+        auto local = buffer.values().first(images_.size());
         for (std::size_t i = 0; i < images_.size(); ++i) {
-            local_coefficients_[i] = reduction.local_dot(images_[i], residual);
+            local[i] = reduction.local_dot(images_[i], residual);
         }
         reduction.sum(
-            std::span<const T>(local_coefficients_.data(), images_.size()),
+            std::span<const detail::local_scalar_t<Reduction, T>>(local),
             std::span<T>(global_coefficients_.data(), images_.size()));
         if (telemetry != nullptr) {
             ++telemetry->global_reductions;
@@ -229,7 +250,7 @@ public:
                     recycle_space_->image(i), *cached_image_);
             }
             reduction_->sum(
-                std::span<const T>(local_coefficients_.data(), dimension),
+                std::span<const local_scalar_t<Reduction, T>>(local_coefficients_.data(), dimension),
                 std::span<T>(global_coefficients_.data(), dimension));
             ++additional_global_reductions_;
             for (std::size_t i = 0; i < dimension; ++i) {
@@ -258,7 +279,7 @@ private:
     const RecycleSpace<T>* recycle_space_;
     BlockVector<T>* cached_image_;
     bool* cache_ready_;
-    std::vector<T> local_coefficients_;
+    std::vector<local_scalar_t<Reduction, T>> local_coefficients_;
     std::vector<T> global_coefficients_;
     std::size_t additional_operator_applications_ = 0;
     std::size_t additional_global_reductions_ = 0;
@@ -289,10 +310,15 @@ template<std::floating_point T,
     ArnoldiSnapshot<T>* arnoldi_snapshot = nullptr)
 {
     SolverResult<T> projection_telemetry;
-    BlockVector<T> initial_solution = solution;
+    if (detail::invalid_problem(rhs, solution, options)) {
+        return projection_telemetry;
+    }
+    BlockVector<T> initial_solution = solution.clone_layout();
+    copy_owned(solution, initial_solution);
     BlockVector<T> residual = rhs.clone_layout();
     BlockVector<T> work = rhs.clone_layout();
     if (!recycle_space.empty()) {
+        recycle_space.refresh(linear_operator, reduction, &projection_telemetry);
         linear_operator.apply(solution, work);
         ++projection_telemetry.operator_applications;
         for (std::size_t i = 0; i < rhs.owned_size(); ++i) {
@@ -321,7 +347,8 @@ template<std::floating_point T,
         + projected_preconditioner.additional_global_reductions();
 
     if (update_recycle_space && result.converged()) {
-        BlockVector<T> correction = solution;
+        BlockVector<T> correction = solution.clone_layout();
+        copy_owned(solution, correction);
         for (std::size_t i = 0; i < solution.owned_size(); ++i) {
             correction.data()[i] -= initial_solution.data()[i];
         }

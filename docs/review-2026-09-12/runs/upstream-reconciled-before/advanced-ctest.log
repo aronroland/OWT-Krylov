@@ -1,0 +1,98 @@
+Internal ctest changing into directory: /home/aron/git/OWT-Krylov/build-review-mpi
+Test project /home/aron/git/OWT-Krylov/build-review-mpi
+      Start  1: owt_krylov_core_tests
+ 1/17 Test  #1: owt_krylov_core_tests ......................   Passed    0.03 sec
+      Start  2: owt_krylov_foundation_norms
+ 2/17 Test  #2: owt_krylov_foundation_norms ................   Passed    0.00 sec
+      Start  3: owt_krylov_foundation_nonfinite
+ 3/17 Test  #3: owt_krylov_foundation_nonfinite ............   Passed    0.00 sec
+      Start  4: owt_krylov_foundation_pipelined_view
+ 4/17 Test  #4: owt_krylov_foundation_pipelined_view .......   Passed    0.01 sec
+      Start  5: owt_krylov_foundation_recycling
+ 5/17 Test  #5: owt_krylov_foundation_recycling ............   Passed    0.00 sec
+      Start  6: owt_krylov_foundation_timer
+ 6/17 Test  #6: owt_krylov_foundation_timer ................   Passed    0.00 sec
+      Start  7: owt_krylov_foundation_mpi_norms
+ 7/17 Test  #7: owt_krylov_foundation_mpi_norms ............   Passed    1.20 sec
+      Start  8: owt_krylov_foundation_mpi_nonfinite
+ 8/17 Test  #8: owt_krylov_foundation_mpi_nonfinite ........   Passed    1.16 sec
+      Start  9: owt_krylov_foundation_mpi_pipelined_view
+ 9/17 Test  #9: owt_krylov_foundation_mpi_pipelined_view ...   Passed    1.18 sec
+      Start 10: owt_krylov_mpi_tests
+10/17 Test #10: owt_krylov_mpi_tests .......................   Passed    1.27 sec
+      Start 11: owt_krylov_partition_2_ranks
+11/17 Test #11: owt_krylov_partition_2_ranks ...............   Passed    1.27 sec
+      Start 12: owt_krylov_partition_4_ranks
+12/17 Test #12: owt_krylov_partition_4_ranks ...............   Passed    1.26 sec
+      Start 28: review_harmonic_flexible
+13/17 Test #28: review_harmonic_flexible ...................***Failed    0.01 sec
+harmonic_orthogonality_defect=1.00693
+
+      Start 29: review_harmonic_pair
+14/17 Test #29: review_harmonic_pair .......................***Failed    0.01 sec
+retained=1 from complex conjugate pair
+
+      Start 30: review_mpi_idr_global_dimension
+15/17 Test #30: review_mpi_idr_global_dimension ............***Failed    3.28 sec
+rank=0 status=invalid_input
+rank=1 status=invalid_input
+--------------------------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpiexec.openmpi detected that one or more processes exited with non-zero status, thus causing
+the job to be terminated. The first process to do so was:
+
+  Process name: [[46232,1],0]
+  Exit code:    1
+--------------------------------------------------------------------------
+
+      Start 31: review_mpi_mixed_precision
+16/17 Test #31: review_mpi_mixed_precision .................***Failed    3.28 sec
+rank=1 dot=0 expected=1
+rank=0 dot=0 expected=1
+--------------------------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpiexec.openmpi detected that one or more processes exited with non-zero status, thus causing
+the job to be terminated. The first process to do so was:
+
+  Process name: [[46299,1],0]
+  Exit code:    1
+--------------------------------------------------------------------------
+
+      Start 32: review_mpi_overlap_pattern
+17/17 Test #32: review_mpi_overlap_pattern .................***Failed    2.28 sec
+rank=1 diagonal=-0.25 expected=2 rejected=0
+rank=0 diagonal=-0.25 expected=2 rejected=0
+--------------------------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpiexec.openmpi detected that one or more processes exited with non-zero status, thus causing
+the job to be terminated. The first process to do so was:
+
+  Process name: [[46122,1],1]
+  Exit code:    1
+--------------------------------------------------------------------------
+
+
+71% tests passed, 5 tests failed out of 17
+
+Label Time Summary:
+foundation    =   3.56 sec*proc (8 tests)
+review        =   8.87 sec*proc (5 tests)
+
+Total Test time (real) =  16.26 sec
+
+The following tests FAILED:
+	 28 - review_harmonic_flexible (Failed)
+	 29 - review_harmonic_pair (Failed)
+	 30 - review_mpi_idr_global_dimension (Failed)
+	 31 - review_mpi_mixed_precision (Failed)
+	 32 - review_mpi_overlap_pattern (Failed)
+Errors while running CTest

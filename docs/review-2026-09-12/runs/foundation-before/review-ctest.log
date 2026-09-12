@@ -1,0 +1,35 @@
+Internal ctest changing into directory: /home/aron/git/OWT-Krylov/build-review
+Test project /home/aron/git/OWT-Krylov/build-review
+    Start 1: owt_krylov_core_tests
+1/6 Test #1: owt_krylov_core_tests ..................   Passed    0.00 sec
+    Start 2: owt_krylov_foundation_norms
+2/6 Test #2: owt_krylov_foundation_norms ............***Failed    0.00 sec
+FAIL: norm lost finite magnitude or included ghost entries
+
+    Start 3: owt_krylov_foundation_nonfinite
+3/6 Test #3: owt_krylov_foundation_nonfinite ........***Failed    0.00 sec
+FAIL: solver accepted a nonfinite problem
+
+    Start 4: owt_krylov_foundation_pipelined_view
+4/6 Test #4: owt_krylov_foundation_pipelined_view ...   Passed    0.01 sec
+    Start 5: owt_krylov_foundation_recycling
+5/6 Test #5: owt_krylov_foundation_recycling ........***Failed    0.00 sec
+FAIL: const candidate was mutated
+
+    Start 6: owt_krylov_foundation_timer
+6/6 Test #6: owt_krylov_foundation_timer ............***Exception: SegFault  1.13 sec
+
+
+33% tests passed, 4 tests failed out of 6
+
+Label Time Summary:
+foundation    =   1.15 sec*proc (5 tests)
+
+Total Test time (real) =   1.16 sec
+
+The following tests FAILED:
+	  2 - owt_krylov_foundation_norms (Failed)
+	  3 - owt_krylov_foundation_nonfinite (Failed)
+	  5 - owt_krylov_foundation_recycling (Failed)
+	  6 - owt_krylov_foundation_timer (SEGFAULT)
+Errors while running CTest

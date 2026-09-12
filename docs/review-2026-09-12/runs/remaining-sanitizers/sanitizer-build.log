@@ -1,0 +1,18 @@
+[  8%] Building CXX object tests/CMakeFiles/owt_krylov_core_tests.dir/test_core.cpp.o
+[ 16%] Linking CXX executable owt_krylov_core_tests
+[ 16%] Built target owt_krylov_core_tests
+[ 25%] Building CXX object tests/CMakeFiles/owt_krylov_foundation_tests.dir/test_foundation.cpp.o
+[ 33%] Linking CXX executable owt_krylov_foundation_tests
+[ 33%] Built target owt_krylov_foundation_tests
+[ 41%] Building CXX object tests/CMakeFiles/owt_krylov_foundation_timer.dir/test_foundation.cpp.o
+[ 50%] Linking CXX executable owt_krylov_foundation_timer
+[ 50%] Built target owt_krylov_foundation_timer
+[ 58%] Building CXX object tests/CMakeFiles/owt_krylov_contract_tests.dir/review/review_contracts.cpp.o
+[ 66%] Linking CXX executable owt_krylov_contract_tests
+[ 66%] Built target owt_krylov_contract_tests
+[ 75%] Building CXX object tests/review/CMakeFiles/owt_review_cases.dir/review_cases.cpp.o
+[ 83%] Linking CXX executable owt_review_cases
+[ 83%] Built target owt_review_cases
+[ 91%] Building CXX object tests/review/CMakeFiles/owt_review_timer.dir/review_cases.cpp.o
+[100%] Linking CXX executable owt_review_timer
+[100%] Built target owt_review_timer

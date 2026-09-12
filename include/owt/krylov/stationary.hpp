@@ -179,7 +179,8 @@ template<std::floating_point T,
                                      correction, result);
         axpy(relaxation_schedule[(iteration - 1) % relaxation_schedule.size()],
              correction, solution);
-        if (iteration % options.convergence_check_interval == 0 || iteration == 1) {
+        if (iteration % options.convergence_check_interval == 0 || iteration == 1
+            || iteration == options.maximum_iterations) {
             detail::true_residual(linear_operator, rhs, solution, residual, work, result);
             const T norm = detail::norm(reduction, residual, result);
             detail::set_residual_result(result, norm, norm, rhs_norm);
@@ -297,7 +298,7 @@ template<std::floating_point T,
         result.iterations = iteration;
         sweep(rhs, solution);
         if (iteration % options.convergence_check_interval == 0
-            || iteration == 1) {
+            || iteration == 1 || iteration == options.maximum_iterations) {
             detail::true_residual(linear_operator, rhs, solution,
                                   residual, work, result);
             const T norm = detail::norm(reduction, residual, result);
@@ -393,7 +394,8 @@ template<std::floating_point T,
         halo.exchange(solution);
         detail::update_gauss_seidel_rows(matrix, rhs, solution, rows,
                                          options.relaxation);
-        if (iteration % options.convergence_check_interval == 0 || iteration == 1) {
+        if (iteration % options.convergence_check_interval == 0 || iteration == 1
+            || iteration == options.maximum_iterations) {
             detail::true_residual(linear_operator, rhs, solution, residual, work, result);
             const T norm = detail::norm(reduction, residual, result);
             detail::set_residual_result(result, norm, norm, rhs_norm);
@@ -433,15 +435,23 @@ template<std::floating_point T,
     detail::true_residual(linear_operator, rhs, solution, residual, work, result);
     result.initial_residual_norm = detail::norm(reduction, residual, result);
 
+    BlockVector<T> exchange_buffer = solution.clone_layout();
     for (std::size_t iteration = 1; iteration <= options.maximum_iterations; ++iteration) {
         result.iterations = iteration;
-        auto handle = halo.begin(solution);
+        // An interior row can still be exported on a directed partition graph.
+        copy_owned(solution, exchange_buffer);
+        std::copy(solution.ghosts().begin(), solution.ghosts().end(),
+                  exchange_buffer.ghosts().begin());
+        auto handle = halo.begin(exchange_buffer);
         detail::update_gauss_seidel_rows(matrix, rhs, solution,
                                          matrix.interior_rows(), options.relaxation);
         halo.end(handle);
+        std::copy(exchange_buffer.ghosts().begin(), exchange_buffer.ghosts().end(),
+                  solution.ghosts().begin());
         detail::update_gauss_seidel_rows(matrix, rhs, solution,
                                          matrix.boundary_rows(), options.relaxation);
-        if (iteration % options.convergence_check_interval == 0 || iteration == 1) {
+        if (iteration % options.convergence_check_interval == 0 || iteration == 1
+            || iteration == options.maximum_iterations) {
             detail::true_residual(linear_operator, rhs, solution, residual, work, result);
             const T norm = detail::norm(reduction, residual, result);
             detail::set_residual_result(result, norm, norm, rhs_norm);
@@ -528,7 +538,8 @@ template<std::floating_point T,
         history_available = true;
 
         detail::true_residual(linear_operator, rhs, solution, residual, work, result);
-        if (iteration % options.convergence_check_interval == 0 || iteration == 1) {
+        if (iteration % options.convergence_check_interval == 0 || iteration == 1
+            || iteration == options.maximum_iterations) {
             const T norm = detail::norm(reduction, residual, result);
             detail::set_residual_result(result, norm, norm, rhs_norm);
             if (norm <= threshold) {

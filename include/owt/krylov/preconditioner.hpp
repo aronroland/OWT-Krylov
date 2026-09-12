@@ -231,10 +231,10 @@ public:
                 }
             }
             for (std::size_t component = 0; component < bs; ++component) {
-                z[component] = omega_ * (T(2) - omega_) * z[component]
-                    / diagonal_[row * bs + component];
+                z[component] /= diagonal_[row * bs + component];
             }
         }
+        scale(omega_ * (T(2) - omega_), output);
     }
 
 private:

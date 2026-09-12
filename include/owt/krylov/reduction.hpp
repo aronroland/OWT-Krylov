@@ -11,6 +11,7 @@
 #include <span>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #ifdef OWT_KRYLOV_ENABLE_MPI
@@ -24,6 +25,30 @@ namespace owt::krylov {
 
 namespace detail {
 
+template<class Reduction, class T>
+using local_scalar_t = decltype(std::declval<Reduction&>().local_dot(
+    std::declval<const BlockVector<T>&>(), std::declval<const BlockVector<T>&>()));
+
+// Keep mixed-precision local products wide until after the collective, while
+// reusing the caller's native scalar workspace for ordinary reductions.
+template<class Reduction, class T>
+class LocalReductionBuffer {
+public:
+    using Scalar = local_scalar_t<Reduction, T>;
+    explicit LocalReductionBuffer(std::span<T> native) : native_(native)
+    {
+        if constexpr (!std::same_as<Scalar, T>) wide_.resize(native.size());
+    }
+    std::span<Scalar> values()
+    {
+        if constexpr (std::same_as<Scalar, T>) return native_;
+        else return wide_;
+    }
+private:
+    std::span<T> native_;
+    std::vector<Scalar> wide_;
+};
+
 template<std::floating_point T>
 [[nodiscard]] T norm_from_squared(T squared_norm) noexcept
 {
@@ -34,6 +59,43 @@ template<std::floating_point T>
         return squared_norm;
     }
     return std::sqrt(std::max(T(0), squared_norm));
+}
+
+template<std::floating_point Accumulator, std::floating_point T>
+[[nodiscard]] Accumulator scaled_norm(const BlockVector<T>& vector)
+{
+    Accumulator scale = 0;
+    for (const T value : vector.owned()) {
+        const Accumulator magnitude = std::abs(static_cast<Accumulator>(value));
+        if (std::isnan(magnitude)) {
+            return std::numeric_limits<Accumulator>::quiet_NaN();
+        }
+        scale = std::max(scale, magnitude);
+    }
+    if (scale == Accumulator(0) || std::isinf(scale)) {
+        return scale;
+    }
+    // Scale before squaring; compensated terms are bounded by one.
+    Accumulator sum = 0;
+    Accumulator correction = 0;
+    for (const T value : vector.owned()) {
+        const Accumulator ratio = static_cast<Accumulator>(value) / scale;
+        const Accumulator term = ratio * ratio;
+        const Accumulator updated = sum + term;
+        correction += sum >= term ? (sum - updated) + term : (term - updated) + sum;
+        sum = updated;
+    }
+    return scale * std::sqrt(sum + correction);
+}
+
+template<std::floating_point T>
+[[nodiscard]] T combine_norms(T first, T second) noexcept
+{
+    // std::hypot(infinity, NaN) may return infinity; invalid data must survive.
+    if (std::isnan(first) || std::isnan(second)) {
+        return std::numeric_limits<T>::quiet_NaN();
+    }
+    return std::hypot(first, second);
 }
 
 } // namespace detail
@@ -84,7 +146,7 @@ public:
 
     [[nodiscard]] T norm(const BlockVector<T>& vector) const
     {
-        return detail::norm_from_squared(dot(vector, vector));
+        return detail::scaled_norm<T>(vector);
     }
 
     void sum(std::span<const T> local, std::span<T> global) const
@@ -142,7 +204,7 @@ public:
 
     [[nodiscard]] T norm(const BlockVector<T>& vector) const
     {
-        return detail::norm_from_squared(dot(vector, vector));
+        return detail::scaled_norm<T>(vector);
     }
 
     void sum(std::span<const T> local, std::span<T> global) const
@@ -168,13 +230,14 @@ class MixedPrecisionSerialReduction {
 public:
     struct Request {};
 
-    [[nodiscard]] T local_dot(const BlockVector<T>& lhs,
+    [[nodiscard]] T dot(const BlockVector<T>& lhs,
                               const BlockVector<T>& rhs) const
     {
-        return dot(lhs, rhs);
+        return static_cast<T>(local_dot(lhs, rhs));
     }
 
-    [[nodiscard]] T dot(const BlockVector<T>& lhs, const BlockVector<T>& rhs) const
+    [[nodiscard]] long double local_dot(const BlockVector<T>& lhs,
+                                        const BlockVector<T>& rhs) const
     {
         if (!lhs.same_layout(rhs)) {
             throw std::invalid_argument("dot layout mismatch");
@@ -190,12 +253,30 @@ public:
                 : (product - updated) + sum;
             sum = updated;
         }
-        return static_cast<T>(sum + correction);
+        return sum + correction;
     }
 
     [[nodiscard]] T norm(const BlockVector<T>& vector) const
     {
-        return detail::norm_from_squared(dot(vector, vector));
+        return static_cast<T>(detail::scaled_norm<long double>(vector));
+    }
+
+    void sum(std::span<const long double> local, std::span<T> global) const
+        requires (!std::same_as<T, long double>)
+    {
+        if (local.size() != global.size()) {
+            throw std::invalid_argument("reduction batch size mismatch");
+        }
+        std::transform(local.begin(), local.end(), global.begin(),
+                       [](long double value) { return static_cast<T>(value); });
+    }
+
+    [[nodiscard]] Request begin_sum(std::span<const long double> local,
+                                    std::span<T> global) const
+        requires (!std::same_as<T, long double>)
+    {
+        sum(local, global);
+        return {};
     }
 
     void sum(std::span<const T> local, std::span<T> global) const
@@ -228,6 +309,36 @@ inline MPI_Datatype mpi_type<float>() { return MPI_FLOAT; }
 
 template<>
 inline MPI_Datatype mpi_type<double>() { return MPI_DOUBLE; }
+
+template<std::floating_point T>
+void mpi_combine_norms(void* input, void* output, int* count, MPI_Datatype*) noexcept
+{
+    const auto* in = static_cast<const T*>(input);
+    auto* out = static_cast<T*>(output);
+    for (int i = 0; i < *count; ++i) {
+        out[i] = combine_norms(in[i], out[i]);
+    }
+}
+
+template<std::floating_point Accumulator, std::floating_point T>
+[[nodiscard]] T mpi_norm(const BlockVector<T>& vector, MPI_Comm communicator)
+{
+    const Accumulator local = scaled_norm<Accumulator>(vector);
+    Accumulator global = 0;
+    // One collective, with no squaring of unscaled local or global norms.
+    // Keep the operation lifetime within MPI's lifetime, not a static destructor.
+    MPI_Op operation = MPI_OP_NULL;
+    if (MPI_Op_create(mpi_combine_norms<Accumulator>, 1, &operation) != MPI_SUCCESS) {
+        throw std::runtime_error("could not create MPI norm operation");
+    }
+    const int status = MPI_Allreduce(&local, &global, 1, mpi_type<Accumulator>(),
+                                     operation, communicator);
+    MPI_Op_free(&operation);
+    if (status != MPI_SUCCESS) {
+        throw std::runtime_error("MPI norm reduction failed");
+    }
+    return static_cast<T>(global);
+}
 } // namespace detail
 
 template<std::floating_point T>
@@ -258,7 +369,7 @@ public:
 
     [[nodiscard]] T norm(const BlockVector<T>& vector) const
     {
-        return detail::norm_from_squared(dot(vector, vector));
+        return detail::mpi_norm<T>(vector, communicator_);
     }
 
     void sum(std::span<const T> local, std::span<T> global) const
@@ -332,7 +443,7 @@ public:
 
     [[nodiscard]] T norm(const BlockVector<T>& vector) const
     {
-        return detail::norm_from_squared(dot(vector, vector));
+        return detail::mpi_norm<T>(vector, communicator_);
     }
 
     void sum(std::span<const T> local, std::span<T> global) const
@@ -385,6 +496,8 @@ class MpiDeterministicReduction {
 public:
     struct Request {};
 
+    [[nodiscard]] MPI_Comm communicator() const noexcept { return communicator_; }
+
     explicit MpiDeterministicReduction(MPI_Comm communicator = MPI_COMM_WORLD)
         : communicator_(communicator)
     {
@@ -409,7 +522,21 @@ public:
 
     [[nodiscard]] T norm(const BlockVector<T>& vector) const
     {
-        return detail::norm_from_squared(dot(vector, vector));
+        const T local = serial_.norm(vector);
+        T global = T(0);
+        if (rank_ == 0) {
+            gathered_.resize(static_cast<std::size_t>(rank_count_));
+        }
+        MPI_Gather(&local, 1, detail::mpi_type<T>(),
+                   rank_ == 0 ? gathered_.data() : nullptr, 1,
+                   detail::mpi_type<T>(), 0, communicator_);
+        if (rank_ == 0) {
+            for (const T value : gathered_) {
+                global = detail::combine_norms(global, value);
+            }
+        }
+        MPI_Bcast(&global, 1, detail::mpi_type<T>(), 0, communicator_);
+        return global;
     }
 
     void sum(std::span<const T> local, std::span<T> global) const
@@ -473,6 +600,8 @@ private:
 template<std::floating_point T>
 class MpiMixedPrecisionReduction {
 public:
+    [[nodiscard]] MPI_Comm communicator() const noexcept { return communicator_; }
+
     struct Request {
         MPI_Request request = MPI_REQUEST_NULL;
         std::vector<double> local;
@@ -485,15 +614,15 @@ public:
     {
     }
 
-    [[nodiscard]] T local_dot(const BlockVector<T>& lhs,
+    [[nodiscard]] double local_dot(const BlockVector<T>& lhs,
                               const BlockVector<T>& rhs) const
     {
-        return serial_.dot(lhs, rhs);
+        return static_cast<double>(serial_.local_dot(lhs, rhs));
     }
 
     [[nodiscard]] T dot(const BlockVector<T>& lhs, const BlockVector<T>& rhs) const
     {
-        const std::array<T, 1> local{local_dot(lhs, rhs)};
+        const std::array<double, 1> local{local_dot(lhs, rhs)};
         std::array<T, 1> global{};
         sum(local, global);
         return global[0];
@@ -501,10 +630,10 @@ public:
 
     [[nodiscard]] T norm(const BlockVector<T>& vector) const
     {
-        return detail::norm_from_squared(dot(vector, vector));
+        return detail::mpi_norm<double>(vector, communicator_);
     }
 
-    void sum(std::span<const T> local, std::span<T> global) const
+    void sum(std::span<const double> local, std::span<T> global) const
     {
         if (local.size() != global.size()) {
             throw std::invalid_argument("reduction batch size mismatch");
@@ -519,7 +648,7 @@ public:
         }
     }
 
-    [[nodiscard]] Request begin_sum(std::span<const T> local,
+    [[nodiscard]] Request begin_sum(std::span<const double> local,
                                     std::span<T> global) const
     {
         if (local.size() != global.size()) {
@@ -533,6 +662,22 @@ public:
                        static_cast<int>(local.size()), MPI_DOUBLE, MPI_SUM,
                        communicator_, &result.request);
         return result;
+    }
+
+    // Compatibility for callers with already-rounded native-T batches.
+    void sum(std::span<const T> local, std::span<T> global) const
+        requires (!std::same_as<T, double>)
+    {
+        const std::vector<double> wide(local.begin(), local.end());
+        sum(std::span<const double>(wide), global);
+    }
+
+    [[nodiscard]] Request begin_sum(std::span<const T> local,
+                                    std::span<T> global) const
+        requires (!std::same_as<T, double>)
+    {
+        const std::vector<double> wide(local.begin(), local.end());
+        return begin_sum(std::span<const double>(wide), global);
     }
 
     void end(Request& request) const

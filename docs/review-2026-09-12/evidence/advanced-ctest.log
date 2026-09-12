@@ -1,0 +1,81 @@
+Internal ctest changing into directory: /home/aron/git/OWT-Krylov/build-review-mpi
+Test project /home/aron/git/OWT-Krylov/build-review-mpi
+    Start  1: owt_krylov_core_tests
+1/9 Test  #1: owt_krylov_core_tests .............   Passed    0.02 sec
+    Start  2: owt_krylov_mpi_tests
+2/9 Test  #2: owt_krylov_mpi_tests ..............   Passed    1.27 sec
+    Start  3: owt_krylov_partition_2_ranks
+3/9 Test  #3: owt_krylov_partition_2_ranks ......   Passed    1.21 sec
+    Start  4: owt_krylov_partition_4_ranks
+4/9 Test  #4: owt_krylov_partition_4_ranks ......   Passed    1.27 sec
+    Start 20: review_harmonic_flexible
+5/9 Test #20: review_harmonic_flexible ..........***Failed    0.01 sec
+harmonic_orthogonality_defect=1.00693
+
+    Start 21: review_harmonic_pair
+6/9 Test #21: review_harmonic_pair ..............***Failed    0.01 sec
+retained=1 from complex conjugate pair
+
+    Start 22: review_mpi_idr_global_dimension
+7/9 Test #22: review_mpi_idr_global_dimension ...***Failed    3.25 sec
+rank=0 status=invalid_input
+rank=1 status=invalid_input
+--------------------------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpiexec.openmpi detected that one or more processes exited with non-zero status, thus causing
+the job to be terminated. The first process to do so was:
+
+  Process name: [[22398,1],1]
+  Exit code:    1
+--------------------------------------------------------------------------
+
+    Start 23: review_mpi_mixed_precision
+8/9 Test #23: review_mpi_mixed_precision ........***Failed    3.31 sec
+rank=1 dot=0 expected=1
+rank=0 dot=0 expected=1
+--------------------------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpiexec.openmpi detected that one or more processes exited with non-zero status, thus causing
+the job to be terminated. The first process to do so was:
+
+  Process name: [[22220,1],0]
+  Exit code:    1
+--------------------------------------------------------------------------
+
+    Start 24: review_mpi_overlap_pattern
+9/9 Test #24: review_mpi_overlap_pattern ........***Failed    3.32 sec
+rank=0 diagonal=-0.25 expected=2 rejected=0
+rank=1 diagonal=-0.25 expected=2 rejected=0
+--------------------------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpiexec.openmpi detected that one or more processes exited with non-zero status, thus causing
+the job to be terminated. The first process to do so was:
+
+  Process name: [[22018,1],1]
+  Exit code:    1
+--------------------------------------------------------------------------
+
+
+44% tests passed, 5 tests failed out of 9
+
+Label Time Summary:
+review    =   9.90 sec*proc (5 tests)
+
+Total Test time (real) =  13.68 sec
+
+The following tests FAILED:
+	 20 - review_harmonic_flexible (Failed)
+	 21 - review_harmonic_pair (Failed)
+	 22 - review_mpi_idr_global_dimension (Failed)
+	 23 - review_mpi_mixed_precision (Failed)
+	 24 - review_mpi_overlap_pattern (Failed)
+Errors while running CTest

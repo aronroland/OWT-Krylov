@@ -1,0 +1,6 @@
+solver,nodes,block_size,entries,iterations,operator_apps,preconditioner_apps,reductions,seconds,true_residual,status
+gmres-cgs2,4096,32,24193,34,36,34,72,0.467065623,2.82552839989e-07,converged
+gmres-one-sync,4096,32,24193,40,42,40,44,0.334484477,8.72232937837e-09,converged
+bicgstab,4096,32,24193,22,46,44,135,0.061563042,1.36044643655e-07,converged
+pipelined-bicgstab,4096,32,24193,22,46,44,69,0.047990695,1.36044643655e-07,converged
+communication-hiding-bicgstab,4096,32,24193,22,48,46,48,0.086039017,1.36044047371e-07,converged
