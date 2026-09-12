@@ -1,5 +1,9 @@
 add_executable(owt_krylov_unstructured_benchmark benchmark_unstructured.cpp)
 target_link_libraries(owt_krylov_unstructured_benchmark PRIVATE OWT::Krylov)
+add_executable(owt_krylov_split_benchmark benchmark_split.cpp)
+target_link_libraries(owt_krylov_split_benchmark PRIVATE OWT::Krylov)
+target_compile_options(owt_krylov_split_benchmark PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>)
 target_compile_options(
     owt_krylov_unstructured_benchmark
     PRIVATE
