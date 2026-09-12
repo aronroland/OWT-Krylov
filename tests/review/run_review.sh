@@ -40,7 +40,7 @@ run cmake-version cmake --version
 run timestamp date -u +%Y-%m-%dT%H:%M:%SZ
 run platform uname -a
 run mpi-version /usr/bin/mpiexec.openmpi --version
-run source-hashes sha256sum CMakeLists.txt tests/CMakeLists.txt tests/*.cpp \
+run source-hashes sha256sum CMakeLists.txt tests/CMakeLists.txt tests/*.cpp benchmarks/*.hpp \
     tests/review/CMakeLists.txt tests/review/*.cpp tests/review/*.sh \
     include/owt/krylov/*.hpp benchmarks/*.cpp benchmarks/*.sh
 if [[ ${1:-all} == metadata ]]; then exit "$overall"; fi

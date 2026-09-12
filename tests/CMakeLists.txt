@@ -7,6 +7,13 @@ target_compile_options(
 )
 add_test(NAME owt_krylov_core_tests COMMAND owt_krylov_core_tests)
 
+add_executable(owt_krylov_split_ssor_tests test_split_ssor.cpp)
+target_link_libraries(owt_krylov_split_ssor_tests PRIVATE OWT::Krylov)
+target_compile_options(owt_krylov_split_ssor_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Wshadow;-Wconversion>)
+add_test(NAME owt_krylov_split_ssor_tests COMMAND owt_krylov_split_ssor_tests)
+set_tests_properties(owt_krylov_split_ssor_tests PROPERTIES TIMEOUT 30)
+
 add_executable(owt_krylov_foundation_tests test_foundation.cpp)
 target_link_libraries(owt_krylov_foundation_tests PRIVATE OWT::Krylov)
 foreach(case IN ITEMS norms nonfinite pipelined_view recycling)

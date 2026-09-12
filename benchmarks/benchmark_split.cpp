@@ -1,4 +1,5 @@
 #include <owt/krylov/owt_krylov.hpp>
+#include "reference_split_ssor.hpp"
 
 #include <array>
 #include <atomic>
@@ -152,7 +153,27 @@ void sample(Problem<T>& problem, int number, std::string_view variant, Reduction
     if (number >= 0) row(problem, number, variant, "products", kernel_seconds, {}, 0, checksum);
 
     auto matrix = problem.view();
-    SplitLocalSsorPreconditioner<T> ssor(matrix, T(1));
+    using Preconditioner = std::conditional_t<std::same_as<Reduction, SerialReduction<T>>,
+        SplitLocalSsorPreconditioner<T>, benchmark::ReferenceSplitSsor<T>>;
+    Preconditioner ssor(matrix, T(1));
+    auto correction = problem.rhs.clone_layout();
+    auto reference_correction = problem.rhs.clone_layout();
+    benchmark::ReferenceSplitSsor<T> reference_ssor(matrix, T(1));
+    ssor.apply(problem.rhs, correction);
+    reference_ssor.apply(problem.rhs, reference_correction);
+    for (std::size_t i = 0; i < correction.owned_size(); ++i)
+        if (correction.data()[i] != reference_correction.data()[i])
+            throw std::runtime_error("SSOR reference mismatch");
+    double ssor_seconds = 0;
+    timed(ssor_seconds, [&] {
+        for (std::size_t i = 0; i < 8; ++i) {
+            std::atomic_signal_fence(std::memory_order_seq_cst);
+            ssor.apply(problem.rhs, correction);
+        }
+    });
+    if (number >= 0)
+        row(problem, number, variant, "preconditioner", ssor_seconds / 8, {}, 0,
+            correction.data()[correction.owned_size() / 2]);
     SolverOptions<T> options;
     options.relative_tolerance = std::same_as<T, float> ? T(1e-5) : T(1e-9);
     options.maximum_iterations = 500;
@@ -177,7 +198,7 @@ void sample(Problem<T>& problem, int number, std::string_view variant, Reduction
 }
 
 template<class T>
-void benchmark(std::size_t side, std::size_t block, int samples)
+void run_benchmark(std::size_t side, std::size_t block, int samples)
 {
     Problem<T> problem(side, block);
     SolverWorkspace<T> native_workspace, reference_workspace;
@@ -211,8 +232,8 @@ int main(int argc, char** argv)
         std::cout << std::setprecision(17)
                   << "precision,side,block,sample,variant,phase,seconds,iterations,operator_apps,preconditioner_apps,reductions,relative_residual,checksum\n";
         for (std::size_t block : {std::size_t(1), std::size_t(5), std::size_t(1296)}) {
-            benchmark<float>(side, block, int(samples));
-            benchmark<double>(side, block, int(samples));
+            run_benchmark<float>(side, block, int(samples));
+            run_benchmark<double>(side, block, int(samples));
         }
         return 0;
     } catch (const std::exception& error) {

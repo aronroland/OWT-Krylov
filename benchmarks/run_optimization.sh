@@ -41,15 +41,18 @@ run timestamp date -u +%Y-%m-%dT%H:%M:%SZ
 run cpu lscpu
 run affinity taskset -pc "$$"
 run compiler /usr/bin/g++ --version
-run source-hashes sha256sum CMakeLists.txt benchmarks/CMakeLists.txt benchmarks/benchmark_split.cpp \
-    benchmarks/run_optimization.sh benchmarks/summarize_optimization.py include/owt/krylov/*.hpp
+run source-hashes sha256sum CMakeLists.txt tests/CMakeLists.txt tests/test_split_ssor.cpp \
+    benchmarks/CMakeLists.txt benchmarks/benchmark_split.cpp \
+    benchmarks/run_optimization.sh benchmarks/summarize_optimization.py \
+    benchmarks/reference_split_ssor.hpp include/owt/krylov/*.hpp
 run configure cmake -S . -B build-optimization -DCMAKE_CXX_COMPILER=/usr/bin/g++ \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS= -DCMAKE_CXX_FLAGS_RELEASE='-O3 -DNDEBUG' \
     -DOWT_KRYLOV_BUILD_BENCHMARKS=ON -DOWT_KRYLOV_BUILD_TESTS=ON \
     -DOWT_KRYLOV_BUILD_REVIEW_TESTS=ON -DOWT_KRYLOV_ENABLE_MPI=OFF \
     -DOWT_KRYLOV_ENABLE_PETSC=OFF -DOWT_KRYLOV_ENABLE_LAPACK=OFF \
     -DOWT_KRYLOV_ENABLE_OPENMP_TARGET=OFF
-run build cmake --build build-optimization --target owt_krylov_split_benchmark
+run build cmake --build build-optimization --target owt_krylov_split_benchmark owt_krylov_split_ssor_tests
+run contracts ctest --test-dir build-optimization --output-on-failure -R '^owt_krylov_split_ssor_tests$'
 run cache cmake -LA -N build-optimization
 run samples taskset -c "$cpu" ./build-optimization/benchmarks/owt_krylov_split_benchmark \
     "${OWT_PERF_SIDE:-16}" "${OWT_PERF_SAMPLES:-10}"

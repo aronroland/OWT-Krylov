@@ -22,7 +22,9 @@ exit codes and raw CSV under `docs/optimization-2026-09-12/<run-id>/` and refuse
 to overwrite that directory. Build and runtime scratch stay under the repository.
 The benchmark and summarizer must themselves be committed to reproduce a run
 from its recorded revision plus patch. A reference reduction retains three
-independent scalar-product calls in the same executable. Both variants use the
+independent scalar-product calls in the same executable. The reference variant
+also uses the frozen split SSOR implementation from correctness commit `86655e6`
+in `reference_split_ssor.hpp`. Both variants use the
 same matrix, initial guess, preconditioner, workspace and stopping criteria.
 Sample order alternates, with allocation warmup before timed solves. Scalar
 product outputs are checked against the reference, and every solve must pass
@@ -30,7 +32,9 @@ an independent long-double residual check or the executable exits nonzero.
 
 Blocks 1, 5 and 1296 are tested in float and double. The products measurement
 reports mean time per triplet across repeated calls; the solve measurement is
-one complete solve with reused workspace. Setup and independent verification
+one complete solve with reused workspace. The preconditioner measurement averages eight applies,
+with exact output comparison against the frozen implementation before timing.
+Setup and independent verification
 are outside solve timing. The `sample=-1` rows provide a separate instrumented
 warmup with operator/preconditioner time; they are not included in paired ratios.
 Kernel microbenchmarks do not by themselves establish application speedups.

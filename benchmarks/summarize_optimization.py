@@ -7,7 +7,7 @@ from collections import defaultdict
 pairs = defaultdict(dict)
 with open(sys.argv[1], newline="", encoding="ascii") as source:
     for row in csv.DictReader(source):
-        if row["phase"] not in {"products", "solve"}:
+        if row["phase"] not in {"products", "preconditioner", "solve"}:
             continue
         key = (row["precision"], int(row["side"]), int(row["block"]), row["phase"], int(row["sample"]))
         if row["variant"] in pairs[key]:
