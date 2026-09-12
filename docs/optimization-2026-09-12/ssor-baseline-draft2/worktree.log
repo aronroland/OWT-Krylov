@@ -1,0 +1,14 @@
+ M .gitignore
+ M README.md
+ M benchmarks/OPTIMIZATION.md
+ M benchmarks/benchmark_split.cpp
+ M benchmarks/run_optimization.sh
+ M benchmarks/summarize_optimization.py
+ M tests/CMakeLists.txt
+ M tests/review/run_review.sh
+?? benchmarks/reference_split_ssor.hpp
+?? docs/MANUAL.md
+?? docs/MANUAL.pdf
+?? docs/MANUAL.tex
+?? docs/optimization-2026-09-12/
+?? tests/test_split_ssor.cpp

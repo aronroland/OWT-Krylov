@@ -1,0 +1,8 @@
+ M .gitignore
+ M README.md
+ M include/owt/krylov/pipelined_bicgstab.hpp
+ M include/owt/krylov/reduction.hpp
+?? docs/MANUAL.md
+?? docs/MANUAL.pdf
+?? docs/MANUAL.tex
+?? docs/optimization-2026-09-12/

@@ -272,7 +272,8 @@ public:
             }
         }
 
-        output.fill_owned(T(0));
+        // Each row is overwritten before use; upper neighbors have already
+        // been computed by this backward sweep, so no output clear is needed.
         for (std::size_t reverse = owned_nodes_; reverse-- > 0;) {
             T* correction = output.data() + reverse * block_size_;
             const T* forward = workspace_.data() + reverse * block_size_;
@@ -302,7 +303,9 @@ public:
                 correction[component] /= diagonal_[reverse * block_size_ + component];
             }
         }
-        scale(omega_ * (T(2) - omega_), output);
+        if (omega_ != T(1)) {
+            scale(omega_ * (T(2) - omega_), output);
+        }
     }
 
     [[nodiscard]] std::size_t numeric_updates() const noexcept

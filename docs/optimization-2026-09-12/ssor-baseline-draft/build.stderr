@@ -1,0 +1,19 @@
+/home/aron/git/OWT-Krylov/benchmarks/benchmark_split.cpp: In function ‘int main(int, char**)’:
+/home/aron/git/OWT-Krylov/benchmarks/benchmark_split.cpp:235:13: error: ‘benchmark’ was not declared in this scope
+  235 |             benchmark<float>(side, block, int(samples));
+      |             ^~~~~~~~~~~~~~~~
+/home/aron/git/OWT-Krylov/benchmarks/benchmark_split.cpp:235:13: note: suggested alternatives:
+/home/aron/git/OWT-Krylov/benchmarks/benchmark_split.cpp:201:6: note:   ‘{anonymous}::benchmark’
+  201 | void benchmark(std::size_t side, std::size_t block, int samples)
+      |      ^~~~~~~~~
+In file included from /home/aron/git/OWT-Krylov/benchmarks/benchmark_split.cpp:2:
+/home/aron/git/OWT-Krylov/benchmarks/reference_split_ssor.hpp:5:24: note:   ‘owt::krylov::benchmark’
+    5 | namespace owt::krylov::benchmark {
+      |                        ^~~~~~~~~
+/home/aron/git/OWT-Krylov/benchmarks/benchmark_split.cpp:236:23: error: expected primary-expression before ‘double’
+  236 |             benchmark<double>(side, block, int(samples));
+      |                       ^~~~~~
+gmake[3]: *** [benchmarks/CMakeFiles/owt_krylov_split_benchmark.dir/build.make:76: benchmarks/CMakeFiles/owt_krylov_split_benchmark.dir/benchmark_split.cpp.o] Error 1
+gmake[2]: *** [CMakeFiles/Makefile2:353: benchmarks/CMakeFiles/owt_krylov_split_benchmark.dir/all] Error 2
+gmake[1]: *** [CMakeFiles/Makefile2:360: benchmarks/CMakeFiles/owt_krylov_split_benchmark.dir/rule] Error 2
+gmake: *** [Makefile:283: owt_krylov_split_benchmark] Error 2

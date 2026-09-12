@@ -1,0 +1,8 @@
+Internal ctest changing into directory: /home/aron/git/OWT-Krylov/build-optimization
+Test project /home/aron/git/OWT-Krylov/build-optimization
+    Start 2: owt_krylov_split_ssor_tests
+1/1 Test #2: owt_krylov_split_ssor_tests ......   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.01 sec

@@ -5,9 +5,9 @@ borrowed split-CSR operator, split SSOR (omega=1) and reused solver workspace.
 The fixture is synthetic; it is not a TRITON-C/ADH case or MPI scaling result.
 
 ```bash
-bash benchmarks/run_optimization.sh baseline
+bash benchmarks/run_optimization.sh "paired-$(date -u +%Y%m%dT%H%M%SZ)"
 # After a candidate change, use another unused ID:
-bash benchmarks/run_optimization.sh candidate
+bash benchmarks/run_optimization.sh "candidate-$(date -u +%Y%m%dT%H%M%SZ)"
 ```
 
 The Linux runner builds in the persistent repository-owned `build-optimization`
@@ -46,8 +46,8 @@ threshold, since the host is not a controlled performance laboratory.
 Correctness remains gated by the documented repository regressions:
 
 ```bash
-OWT_REVIEW_RUN_ID=optimization-cases bash tests/review/run_review.sh cases
-OWT_REVIEW_RUN_ID=optimization-sanitizers bash tests/review/run_review.sh sanitizers
+OWT_REVIEW_RUN_ID="optimization-cases-$(date -u +%Y%m%dT%H%M%SZ)" bash tests/review/run_review.sh cases
+OWT_REVIEW_RUN_ID="optimization-sanitizers-$(date -u +%Y%m%dT%H%M%SZ)" bash tests/review/run_review.sh sanitizers
 ```
 
 These are fresh synthetic solver tests. Archived reference checks, figure

@@ -1,0 +1,11 @@
+ M .gitignore
+ M README.md
+ M benchmarks/OPTIMIZATION.md
+ M include/owt/krylov/split_block_csr.hpp
+?? docs/MANUAL.md
+?? docs/MANUAL.pdf
+?? docs/MANUAL.tex
+?? docs/OPTIMIZATION_STATUS.md
+?? docs/optimization-2026-09-12/
+?? docs/review-2026-09-12/runs/optimization-cases/
+?? docs/review-2026-09-12/runs/optimization-sanitizers/

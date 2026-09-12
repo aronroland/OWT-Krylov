@@ -1,0 +1,141 @@
+diff --git a/include/owt/krylov/pipelined_bicgstab.hpp b/include/owt/krylov/pipelined_bicgstab.hpp
+index 822f040..ab46c28 100644
+--- a/include/owt/krylov/pipelined_bicgstab.hpp
++++ b/include/owt/krylov/pipelined_bicgstab.hpp
+@@ -124,11 +124,8 @@ template<std::floating_point T,
+         detail::apply_operator(linear_operator, preconditioned_intermediate,
+                                operator_intermediate, result);
+ 
+-        std::array<detail::local_scalar_t<Reduction, T>, 3> local_omega{
+-            reduction.local_dot(operator_intermediate, intermediate),
+-            reduction.local_dot(operator_intermediate, operator_intermediate),
+-            reduction.local_dot(intermediate, intermediate),
+-        };
++        auto local_omega = detail::local_dot_and_norms(
++            reduction, operator_intermediate, intermediate);
+         std::array<T, 3> global_omega{};
+         auto omega_request = reduction.begin_sum(local_omega, global_omega);
+         ++result.global_reductions;
+diff --git a/include/owt/krylov/reduction.hpp b/include/owt/krylov/reduction.hpp
+index 35507a7..69ee7bb 100644
+--- a/include/owt/krylov/reduction.hpp
++++ b/include/owt/krylov/reduction.hpp
+@@ -144,6 +144,43 @@ public:
+         return static_cast<T>(sum);
+     }
+ 
++    // Return {lhs.rhs, lhs.lhs, rhs.rhs} in two owned-vector traversals, with
++    // the same accumulator precision and per-product ordering as dot().
++    [[nodiscard]] std::array<T, 3> local_dot_and_norms(
++        const BlockVector<T>& lhs, const BlockVector<T>& rhs) const
++    {
++        if (!lhs.same_layout(rhs)) {
++            throw std::invalid_argument("dot layout mismatch");
++        }
++        using Accumulator = std::conditional_t<std::same_as<T, float>, double, T>;
++        std::array<Accumulator, 8> cross{}, left_squared{};
++        const T* left = lhs.data();
++        const T* right = rhs.data();
++        const std::size_t size = lhs.owned_size();
++        std::size_t i = 0;
++        for (; i + cross.size() <= size; i += cross.size()) {
++            for (std::size_t lane = 0; lane < cross.size(); ++lane) {
++                const Accumulator a = static_cast<Accumulator>(left[i + lane]);
++                const Accumulator b = static_cast<Accumulator>(right[i + lane]);
++                cross[lane] += a * b;
++                left_squared[lane] += a * a;
++            }
++        }
++        auto combine = [](const auto& partial) {
++            return (partial[0] + partial[1]) + (partial[2] + partial[3])
++                + (partial[4] + partial[5]) + (partial[6] + partial[7]);
++        };
++        Accumulator ab = combine(cross);
++        Accumulator aa = combine(left_squared);
++        for (; i < size; ++i) {
++            const Accumulator a = static_cast<Accumulator>(left[i]);
++            const Accumulator b = static_cast<Accumulator>(right[i]);
++            ab += a * b;
++            aa += a * a;
++        }
++        return {static_cast<T>(ab), static_cast<T>(aa), local_dot(rhs, rhs)};
++    }
++
+     [[nodiscard]] T norm(const BlockVector<T>& vector) const
+     {
+         return detail::scaled_norm<T>(vector);
+@@ -367,6 +404,12 @@ public:
+         return serial_.dot(lhs, rhs);
+     }
+ 
++    [[nodiscard]] std::array<T, 3> local_dot_and_norms(
++        const BlockVector<T>& lhs, const BlockVector<T>& rhs) const
++    {
++        return serial_.local_dot_and_norms(lhs, rhs);
++    }
++
+     [[nodiscard]] T norm(const BlockVector<T>& vector) const
+     {
+         return detail::mpi_norm<T>(vector, communicator_);
+@@ -695,4 +738,28 @@ private:
+ 
+ #endif
+ 
++namespace detail {
++
++template<class Reduction, class T>
++[[nodiscard]] auto local_dot_and_norms(Reduction& reduction,
++    const BlockVector<T>& lhs, const BlockVector<T>& rhs)
++{
++    // Only fuse the native policies. Derived/custom policies may override
++    // local_dot(), and mixed or compensated policies retain their arithmetic.
++    using Policy = std::remove_cvref_t<Reduction>;
++    if constexpr (std::same_as<Policy, SerialReduction<T>>
++#ifdef OWT_KRYLOV_ENABLE_MPI
++                  || std::same_as<Policy, MpiReduction<T>>
++#endif
++    ) {
++        return reduction.local_dot_and_norms(lhs, rhs);
++    } else {
++        return std::array<local_scalar_t<Reduction, T>, 3>{
++            reduction.local_dot(lhs, rhs), reduction.local_dot(lhs, lhs),
++            reduction.local_dot(rhs, rhs)};
++    }
++}
++
++} // namespace detail
++
+ } // namespace owt::krylov
+diff --git a/tests/CMakeLists.txt b/tests/CMakeLists.txt
+index 4c9307d..b58fcd4 100644
+--- a/tests/CMakeLists.txt
++++ b/tests/CMakeLists.txt
+@@ -7,6 +7,13 @@ target_compile_options(
+ )
+ add_test(NAME owt_krylov_core_tests COMMAND owt_krylov_core_tests)
+ 
++add_executable(owt_krylov_fused_tests test_fused_reduction.cpp)
++target_link_libraries(owt_krylov_fused_tests PRIVATE OWT::Krylov)
++target_compile_options(owt_krylov_fused_tests PRIVATE
++    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Wshadow;-Wconversion>)
++add_test(NAME owt_krylov_fused_tests COMMAND owt_krylov_fused_tests)
++set_tests_properties(owt_krylov_fused_tests PROPERTIES TIMEOUT 30)
++
+ add_executable(owt_krylov_foundation_tests test_foundation.cpp)
+ target_link_libraries(owt_krylov_foundation_tests PRIVATE OWT::Krylov)
+ foreach(case IN ITEMS norms nonfinite pipelined_view recycling)
+@@ -38,6 +45,14 @@ if(OWT_KRYLOV_BUILD_REVIEW_TESTS)
+ endif()
+ 
+ if(OWT_KRYLOV_ENABLE_MPI)
++    add_executable(owt_krylov_fused_mpi_tests test_fused_reduction.cpp)
++    target_link_libraries(owt_krylov_fused_mpi_tests PRIVATE OWT::Krylov)
++    target_compile_definitions(owt_krylov_fused_mpi_tests PRIVATE OWT_TEST_FUSED_MPI=1)
++    add_test(NAME owt_krylov_fused_mpi_tests
++        COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
++                $<TARGET_FILE:owt_krylov_fused_mpi_tests>)
++    set_tests_properties(owt_krylov_fused_mpi_tests PROPERTIES TIMEOUT 30)
++
+     add_executable(owt_krylov_mpi_contract_tests review/review_mpi_contracts.cpp)
+     target_link_libraries(owt_krylov_mpi_contract_tests PRIVATE OWT::Krylov)
+     foreach(case IN ITEMS idr mixed overlap halo)
