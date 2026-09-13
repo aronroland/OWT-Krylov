@@ -1,5 +1,24 @@
 # Numerical review regressions
 
+The ordinary suite also checks the vertex-based external-library contract.
+`owt_krylov_vertex_*` solves one irregular triangular mesh with natural and
+shuffled vertex numbering, constrained rows, scalar/3/1296-component blocks,
+float/double storage, reused workspace and numeric updates. A nonzero local
+component coupling is checked against an independent global-edge reference;
+a deliberately incomplete operator must fail that independent residual check.
+MPI configurations exercise the same global problem on one, two and four ranks.
+
+`owt_krylov_external_consumer` installs the configured library and compiles the
+same fixture using only `find_package(OWTKrylov)` and `OWT::Krylov`. It runs via
+the ordinary CTest commands below, including `cases` and `sanitizers`. Each
+invocation retains its install, build, commands, logs and exit codes beneath
+`<build>/consumer/runs/<UTC timestamp>/`. This is a fresh synthetic library and
+installed-package check, not a SpecWave application reproduction.
+On GCC, Clang and IntelLLVM the installed-consumer test also builds deliberate
+`-ffast-math` and `-ffinite-math-only` negative targets. Each must fail with the
+library's finite-value guard diagnostic; a failure for another reason does not
+pass the check. These expected failures have their own logs and exit codes.
+
 These cases specify desired behavior and are not marked WILL_FAIL. The original
 20 probes passed after updating to upstream `4bd549b` and applying the fixes;
 see [completion status](../../docs/REMAINING_REGRESSIONS_STATUS.md) for final evidence.

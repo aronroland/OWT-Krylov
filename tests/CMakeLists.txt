@@ -7,6 +7,23 @@ target_compile_options(
 )
 add_test(NAME owt_krylov_core_tests COMMAND owt_krylov_core_tests)
 
+add_executable(owt_krylov_vertex_tests consumer/main.cpp)
+target_link_libraries(owt_krylov_vertex_tests PRIVATE OWT::Krylov)
+add_test(NAME owt_krylov_vertex_serial COMMAND owt_krylov_vertex_tests)
+set_tests_properties(owt_krylov_vertex_serial PROPERTIES LABELS contracts TIMEOUT 120)
+add_test(NAME owt_krylov_external_consumer
+    COMMAND ${CMAKE_COMMAND}
+        -DOWT_BUILD=${PROJECT_BINARY_DIR}
+        -DOWT_SOURCE=${PROJECT_SOURCE_DIR}
+        -DOWT_CONSUMER_ROOT=${PROJECT_BINARY_DIR}/consumer
+        -DOWT_INSTALL_LIBDIR=${CMAKE_INSTALL_LIBDIR}
+        -DOWT_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        -DOWT_CXX_ID=${CMAKE_CXX_COMPILER_ID}
+        "-DOWT_CXX_FLAGS=${CMAKE_CXX_FLAGS}"
+        -DOWT_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/consumer/run.cmake)
+set_tests_properties(owt_krylov_external_consumer PROPERTIES LABELS contracts TIMEOUT 300)
+
 add_executable(owt_krylov_split_ssor_tests test_split_ssor.cpp)
 target_link_libraries(owt_krylov_split_ssor_tests PRIVATE OWT::Krylov)
 target_compile_options(owt_krylov_split_ssor_tests PRIVATE
@@ -45,6 +62,12 @@ if(OWT_KRYLOV_BUILD_REVIEW_TESTS)
 endif()
 
 if(OWT_KRYLOV_ENABLE_MPI)
+    foreach(ranks IN ITEMS 2 4)
+        add_test(NAME owt_krylov_vertex_${ranks}_ranks
+            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
+                $<TARGET_FILE:owt_krylov_vertex_tests>)
+        set_tests_properties(owt_krylov_vertex_${ranks}_ranks PROPERTIES LABELS contracts TIMEOUT 120)
+    endforeach()
     add_executable(owt_krylov_mpi_contract_tests review/review_mpi_contracts.cpp)
     target_link_libraries(owt_krylov_mpi_contract_tests PRIVATE OWT::Krylov)
     foreach(case IN ITEMS idr mixed overlap halo)

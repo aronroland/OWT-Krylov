@@ -1,0 +1,69 @@
+Internal ctest changing into directory: /home/aron/git/OWT-Krylov/build-review
+Test project /home/aron/git/OWT-Krylov/build-review
+      Start  1: owt_krylov_core_tests
+ 1/29 Test  #1: owt_krylov_core_tests ..................   Passed    0.01 sec
+      Start  2: owt_krylov_vertex_serial
+ 2/29 Test  #2: owt_krylov_vertex_serial ...............   Passed    0.07 sec
+      Start  3: owt_krylov_external_consumer
+ 3/29 Test  #3: owt_krylov_external_consumer ...........   Passed    4.31 sec
+      Start  4: owt_krylov_split_ssor_tests
+ 4/29 Test  #4: owt_krylov_split_ssor_tests ............   Passed    0.01 sec
+      Start  5: owt_krylov_foundation_norms
+ 5/29 Test  #5: owt_krylov_foundation_norms ............   Passed    0.00 sec
+      Start  6: owt_krylov_foundation_nonfinite
+ 6/29 Test  #6: owt_krylov_foundation_nonfinite ........   Passed    0.00 sec
+      Start  7: owt_krylov_foundation_pipelined_view
+ 7/29 Test  #7: owt_krylov_foundation_pipelined_view ...   Passed    0.00 sec
+      Start  8: owt_krylov_foundation_recycling
+ 8/29 Test  #8: owt_krylov_foundation_recycling ........   Passed    0.00 sec
+      Start  9: owt_krylov_foundation_timer
+ 9/29 Test  #9: owt_krylov_foundation_timer ............   Passed    0.00 sec
+      Start 10: owt_krylov_contract_ssor
+10/29 Test #10: owt_krylov_contract_ssor ...............   Passed    0.00 sec
+      Start 11: owt_krylov_contract_scaled
+11/29 Test #11: owt_krylov_contract_scaled .............   Passed    0.00 sec
+      Start 12: owt_krylov_contract_final
+12/29 Test #12: owt_krylov_contract_final ..............   Passed    0.00 sec
+      Start 13: owt_krylov_contract_ilu
+13/29 Test #13: owt_krylov_contract_ilu ................   Passed    0.00 sec
+      Start 14: owt_krylov_contract_recycling
+14/29 Test #14: owt_krylov_contract_recycling ..........   Passed    0.00 sec
+      Start 15: review_nonfinite_norm
+15/29 Test #15: review_nonfinite_norm ..................   Passed    0.00 sec
+      Start 16: review_large_norm
+16/29 Test #16: review_large_norm ......................   Passed    0.00 sec
+      Start 17: review_small_norm
+17/29 Test #17: review_small_norm ......................   Passed    0.00 sec
+      Start 18: review_nonfinite_solve
+18/29 Test #18: review_nonfinite_solve .................   Passed    0.00 sec
+      Start 19: review_recycled_view
+19/29 Test #19: review_recycled_view ...................   Passed    0.00 sec
+      Start 20: review_candidate_view
+20/29 Test #20: review_candidate_view ..................   Passed    0.00 sec
+      Start 21: review_ssor
+21/29 Test #21: review_ssor ............................   Passed    0.00 sec
+      Start 22: review_scaled_gmres
+22/29 Test #22: review_scaled_gmres ....................   Passed    0.00 sec
+      Start 23: review_scaled_bicgstab
+23/29 Test #23: review_scaled_bicgstab .................   Passed    0.00 sec
+      Start 24: review_ilu_pivot
+24/29 Test #24: review_ilu_pivot .......................   Passed    0.00 sec
+      Start 25: review_changed_recycle_operator
+25/29 Test #25: review_changed_recycle_operator ........   Passed    0.00 sec
+      Start 26: review_final_iteration
+26/29 Test #26: review_final_iteration .................   Passed    0.00 sec
+      Start 27: review_one_sync
+27/29 Test #27: review_one_sync ........................   Passed    0.00 sec
+      Start 28: review_send_buffer
+28/29 Test #28: review_send_buffer .....................   Passed    0.00 sec
+      Start 29: review_timer_no_elision
+29/29 Test #29: review_timer_no_elision ................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 29
+
+Label Time Summary:
+contracts     =   4.38 sec*proc (7 tests)
+foundation    =   0.01 sec*proc (5 tests)
+review        =   0.03 sec*proc (15 tests)
+
+Total Test time (real) =   4.45 sec

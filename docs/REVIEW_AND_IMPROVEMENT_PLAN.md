@@ -13,6 +13,13 @@ preserved; they do not describe the current failure count.
 
 ## Assessment
 
+The governing development requirement is now the
+[unified external library contract](LIBRARY_CONTRACT.md): one OWT-Krylov for
+vertex-based unstructured triangular grids, with application-owned complete
+operators and thin adapters. Its ordered integration gates take priority over
+further kernel optimization. The historical numerical findings below remain
+preserved as the original review record.
+
 Application priority, clarified with the user: **TRITON-C first; ADH as the
 next concrete consumer; preserve room for additional applications.** The
 [TRITON-C and ADH application review](APPLICATION_REVIEW_TRITON_ADH.md)

@@ -13,6 +13,13 @@ Application source was not updated or rerun by that library-only work. Library
 algorithm/selector comparisons below describe the originally inspected state
 and must be rechecked at the application integration gate.
 
+The [unified external library contract](LIBRARY_CONTRACT.md) now governs further
+work. The source-only follow-up below corrects an operator-completeness omission
+in the initial review; no fresh application solve is claimed.
+Subsequent fixes and adapter regressions are recorded in
+[unification status](UNIFICATION_STATUS.md); historical source findings below
+are retained rather than rewritten as if the original inspection had passed.
+
 ## Repository boundary
 
 **User requirement: all ADH integration work must happen in
@@ -127,6 +134,55 @@ R2/R10 recycling, R4 AsyncGS, R5 IDR, R6 RAS overlap updates, R9 mixed reduction
 and R11 one-sync GMRES are **not selected by this type-22 adapter**. Retain and
 repair those findings, but do not describe their failing probes as failures
 already observed in TRITON-C's current solve path.
+
+## SpecWave follow-up: full-operator and build gaps
+
+Read-only reinspection on 2026-09-12 confirmed SpecWave `main` at
+`75b42ab9ff52aa81091cf7266bb2c75e330a7e8a`, synchronized with `origin/main`.
+The four source hashes above are unchanged and the OWT adapter remains
+untracked. The separately pulled ERDC `Triton_C` repository is not this
+checkout. Its adapter and solver-ID mapping cannot qualify SpecWave's path.
+
+**The initial review missed an operator-completeness defect.** In the inspected
+SpecWave source, `RDschemes_implicit_V2.hpp:864` adds the refraction diagonal
+through `Refraction::applyTo_ASPAR_DIAG`. Native solver 12 additionally applies
+neighboring-direction terms in its initial residual and matrix products
+(`BiCGSTAB.hpp:3968`, `:4074`, `:4178`). The type-22 adapter receives only
+`ASPAR_DIAG`, `ASPAR_offdiag` and spatial connectivity
+(`OWTKrylovSolver.hpp:159`); it has no directional coupling provider. The
+`solver_done` path does not apply those omitted terms afterward. When these
+couplings are nonzero, the OWT path solves an incomplete system even if its
+reported true residual is small. Limon's `wwx_bench.nml:5` enables refraction.
+The numerical size of the discrepancy has not been measured in a fresh solve.
+
+This belongs at the complete-operator boundary, not inside a wave-specific
+Krylov recurrence. Geographic-only SSOR may remain an explicit approximation;
+the true-residual operator must retain all enabled terms. Disabling refraction
+would define a different, restricted test, not repair or validate this case.
+
+Native solver 12 also permits a per-node convergence exit
+(`BiCGSTAB.hpp:4304`), unlike the OWT adapter's global residual criterion.
+Neither equal tolerance values nor process exit code zero establish matched
+accuracy. Failure propagation remains unresolved as described above.
+
+The earlier statement that selecting single precision always requires an
+explicit outer Makefile selection was incomplete: `makefile.conf:51` forces
+`-DSINGLE` in the GNU branch, including with `PRECISION=DOUBLE`. Meanwhile,
+`RDschemes_implicit_V2.hpp:2026` reduces a `T` wave-height accumulator with
+hard-coded `MPI_DOUBLE`; that is an invalid buffer/datatype pairing for float.
+The default Intel branch does not enable `SINGLE`, but its release flags include
+`-ffinite-math-only` (`makefile.conf:29`). This permits assumptions excluding
+NaN/Inf, conflicting with reliance on finite-value guards; see the
+[Clang flag contract](https://clang.llvm.org/docs/UsersManual.html).
+No compiler-specific guard failure was reproduced in this follow-up.
+
+A Makefile dry run with `USE_OWT_KRYLOV=1` resolved the external headers from
+`../../../OWT-Krylov/include`, Intel MPI/ParMETIS, and output
+`/home/aron/bin/ww-x`. It did not compile anything. The benchmark defaults to
+`SpecWave/TRITON-C/ww-x/ww-x`, which is absent. The existing
+`benchmarks/specwave_limon.sh` also creates disposable `/tmp` storage and
+deletes its evidence. It was not executed; repair the documented workflow in
+place before running it, and retain the complete build and solve evidence.
 
 ## ADH integration plan
 

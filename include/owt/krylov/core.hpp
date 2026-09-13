@@ -1,5 +1,9 @@
 #pragma once
 
+#if defined(__FAST_MATH__) || (defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__ > 0)
+#error "OWT-Krylov requires finite-value checks: disable -ffast-math and -ffinite-math-only"
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>

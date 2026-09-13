@@ -42,6 +42,7 @@ run platform uname -a
 run mpi-version /usr/bin/mpiexec.openmpi --version
 run source-hashes sha256sum CMakeLists.txt tests/CMakeLists.txt tests/*.cpp benchmarks/*.hpp \
     tests/review/CMakeLists.txt tests/review/*.cpp tests/review/*.sh \
+    tests/consumer/CMakeLists.txt tests/consumer/*.cpp tests/consumer/*.cmake \
     include/owt/krylov/*.hpp benchmarks/*.cpp benchmarks/*.sh
 if [[ ${1:-all} == metadata ]]; then exit "$overall"; fi
 if [[ ${1:-all} == sanitizers ]]; then

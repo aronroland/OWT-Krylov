@@ -1,0 +1,75 @@
+Internal ctest changing into directory: /home/aron/git/OWT-Krylov/build-review-mpi
+Test project /home/aron/git/OWT-Krylov/build-review-mpi
+      Start  1: owt_krylov_core_tests
+ 1/32 Test  #1: owt_krylov_core_tests ......................   Passed    0.03 sec
+      Start  2: owt_krylov_vertex_serial
+ 2/32 Test  #2: owt_krylov_vertex_serial ...................   Passed    1.54 sec
+      Start  3: owt_krylov_external_consumer
+ 3/32 Test  #3: owt_krylov_external_consumer ...............   Passed   16.41 sec
+      Start  4: owt_krylov_split_ssor_tests
+ 4/32 Test  #4: owt_krylov_split_ssor_tests ................   Passed    0.01 sec
+      Start  5: owt_krylov_foundation_norms
+ 5/32 Test  #5: owt_krylov_foundation_norms ................   Passed    0.00 sec
+      Start  6: owt_krylov_foundation_nonfinite
+ 6/32 Test  #6: owt_krylov_foundation_nonfinite ............   Passed    0.00 sec
+      Start  7: owt_krylov_foundation_pipelined_view
+ 7/32 Test  #7: owt_krylov_foundation_pipelined_view .......   Passed    0.00 sec
+      Start  8: owt_krylov_foundation_recycling
+ 8/32 Test  #8: owt_krylov_foundation_recycling ............   Passed    0.00 sec
+      Start  9: owt_krylov_foundation_timer
+ 9/32 Test  #9: owt_krylov_foundation_timer ................   Passed    0.00 sec
+      Start 10: owt_krylov_contract_ssor
+10/32 Test #10: owt_krylov_contract_ssor ...................   Passed    0.00 sec
+      Start 11: owt_krylov_contract_scaled
+11/32 Test #11: owt_krylov_contract_scaled .................   Passed    0.00 sec
+      Start 12: owt_krylov_contract_final
+12/32 Test #12: owt_krylov_contract_final ..................   Passed    0.00 sec
+      Start 13: owt_krylov_contract_ilu
+13/32 Test #13: owt_krylov_contract_ilu ....................   Passed    0.00 sec
+      Start 14: owt_krylov_contract_recycling
+14/32 Test #14: owt_krylov_contract_recycling ..............   Passed    0.00 sec
+      Start 15: owt_krylov_vertex_2_ranks
+15/32 Test #15: owt_krylov_vertex_2_ranks ..................   Passed    1.13 sec
+      Start 16: owt_krylov_vertex_4_ranks
+16/32 Test #16: owt_krylov_vertex_4_ranks ..................   Passed    1.24 sec
+      Start 17: owt_krylov_mpi_contract_idr
+17/32 Test #17: owt_krylov_mpi_contract_idr ................   Passed    1.20 sec
+      Start 18: owt_krylov_mpi_contract_mixed
+18/32 Test #18: owt_krylov_mpi_contract_mixed ..............   Passed    1.19 sec
+      Start 19: owt_krylov_mpi_contract_overlap
+19/32 Test #19: owt_krylov_mpi_contract_overlap ............   Passed    1.21 sec
+      Start 20: owt_krylov_mpi_contract_halo
+20/32 Test #20: owt_krylov_mpi_contract_halo ...............   Passed    1.20 sec
+      Start 21: owt_krylov_foundation_mpi_norms
+21/32 Test #21: owt_krylov_foundation_mpi_norms ............   Passed    1.16 sec
+      Start 22: owt_krylov_foundation_mpi_nonfinite
+22/32 Test #22: owt_krylov_foundation_mpi_nonfinite ........   Passed    1.15 sec
+      Start 23: owt_krylov_foundation_mpi_pipelined_view
+23/32 Test #23: owt_krylov_foundation_mpi_pipelined_view ...   Passed    1.16 sec
+      Start 24: owt_krylov_mpi_tests
+24/32 Test #24: owt_krylov_mpi_tests .......................   Passed    1.21 sec
+      Start 25: owt_krylov_partition_2_ranks
+25/32 Test #25: owt_krylov_partition_2_ranks ...............   Passed    1.24 sec
+      Start 26: owt_krylov_partition_4_ranks
+26/32 Test #26: owt_krylov_partition_4_ranks ...............   Passed    1.20 sec
+      Start 42: review_harmonic_flexible
+27/32 Test #42: review_harmonic_flexible ...................   Passed    0.02 sec
+      Start 43: review_harmonic_pair
+28/32 Test #43: review_harmonic_pair .......................   Passed    0.02 sec
+      Start 44: review_harmonic_contracts
+29/32 Test #44: review_harmonic_contracts ..................   Passed    0.02 sec
+      Start 45: review_mpi_idr_global_dimension
+30/32 Test #45: review_mpi_idr_global_dimension ............   Passed    1.21 sec
+      Start 46: review_mpi_mixed_precision
+31/32 Test #46: review_mpi_mixed_precision .................   Passed    1.20 sec
+      Start 47: review_mpi_overlap_pattern
+32/32 Test #47: review_mpi_overlap_pattern .................   Passed    1.21 sec
+
+100% tests passed, 0 tests failed out of 32
+
+Label Time Summary:
+contracts     =  25.13 sec*proc (13 tests)
+foundation    =   3.48 sec*proc (8 tests)
+review        =   3.67 sec*proc (6 tests)
+
+Total Test time (real) =  35.99 sec

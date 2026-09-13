@@ -5,21 +5,29 @@
 > prohibited without a separate written license. This is not open-source
 > software. See [LICENSE](LICENSE).
 
-OWT-Krylov is a standalone solver library derived from SpecWave's distributed
-solver architecture for unstructured grids. Its design retains owned/ghost node
-blocks, fused traversal of all components at a node, batched reductions, direct
-MPI halo types, and SIMD across each node block. Performance claims require a
+OWT-Krylov is a standalone external solver library dedicated to vertex-based
+discretizations on unstructured triangular grids. Derived from SpecWave's
+distributed solver architecture, it retains owned/ghost vertex blocks, fused
+traversal of all components at a vertex, batched reductions, direct MPI halo
+types, and SIMD across each vertex block. Performance claims require a
 reproduced, residual-matched application benchmark.
 
 This is not a scalar-CSR rewrite. The primary storage unit is a contiguous block
 per unstructured-grid node.
 
+The [unified library contract](docs/LIBRARY_CONTRACT.md) defines the development
+boundary: OWT owns reusable numerical algorithms and distributed algebra;
+applications supply the complete operator, physical coefficients, boundary
+equations, and ownership mapping. TRITON-C and OWT-ADH must consume the same
+library, not maintain separate solver forks. The contract distinguishes existing APIs
+from integration and consistency work still required.
+
 ## Current implementation
 
 - contiguous `BlockVector<T>` storage with owned nodes followed by ghosts;
 - non-owning vector and matrix views for zero-copy application integration;
-- component-diagonal block CSR, a borrowed split diagonal/edge view matching
-  SpecWave exactly, plus true dense BSR for locally coupled node degrees of freedom;
+- component-diagonal block CSR, a borrowed split view of spatial diagonal/edge
+  coefficients, plus true dense BSR for locally coupled node degrees of freedom;
 - fused block-CSR kernels with AVX-512, AVX2, ARM NEON, and scalar paths;
 - zero-copy MPI halo plans using reusable derived datatypes;
 - Hilbert, RCM, approximate-minimum-degree, and nested-dissection node orderings;
@@ -60,6 +68,10 @@ The detailed mapping is in
 [SpecWave port matrix](docs/SPECWAVE_PORT_MATRIX.md).
 
 ## Build and test
+
+Consumers must disable `-ffast-math` and `-ffinite-math-only`; the public core
+header rejects these detected modes because convergence safeguards require
+finite-value checks. This does not certify every other floating-point flag.
 
 Serial:
 
