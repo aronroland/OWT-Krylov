@@ -1,0 +1,80 @@
+[
+  {
+    "step": 0,
+    "true_relative_residual": 4.467731e-09,
+    "iterations": 4,
+    "operator_apps": 10,
+    "preconditioner_apps": 8,
+    "reductions": 14,
+    "update_seconds": 0.008399671,
+    "solve_seconds": 0.18741353,
+    "spatial_seconds": 0.042139982,
+    "spectral_seconds": 0.00923071,
+    "preconditioner_seconds": 0.04675969
+  },
+  {
+    "step": 1,
+    "true_relative_residual": 9.13975098e-11,
+    "iterations": 28,
+    "operator_apps": 58,
+    "preconditioner_apps": 56,
+    "reductions": 86,
+    "update_seconds": 0.00240669,
+    "solve_seconds": 1.0488933,
+    "spatial_seconds": 0.2543107,
+    "spectral_seconds": 0.063135099,
+    "preconditioner_seconds": 0.34041799
+  },
+  {
+    "step": 2,
+    "true_relative_residual": 3.01118011e-09,
+    "iterations": 26,
+    "operator_apps": 54,
+    "preconditioner_apps": 52,
+    "reductions": 80,
+    "update_seconds": 0.002508701,
+    "solve_seconds": 0.94227307,
+    "spatial_seconds": 0.26803503,
+    "spectral_seconds": 0.083161181,
+    "preconditioner_seconds": 0.34981471
+  },
+  {
+    "step": 3,
+    "true_relative_residual": 9.72118419e-09,
+    "iterations": 25,
+    "operator_apps": 52,
+    "preconditioner_apps": 50,
+    "reductions": 78,
+    "update_seconds": 0.00224098,
+    "solve_seconds": 0.84101292,
+    "spatial_seconds": 0.2379136,
+    "spectral_seconds": 0.064764658,
+    "preconditioner_seconds": 0.3066381
+  },
+  {
+    "step": 4,
+    "true_relative_residual": 9.36925766e-09,
+    "iterations": 25,
+    "operator_apps": 52,
+    "preconditioner_apps": 50,
+    "reductions": 77,
+    "update_seconds": 0.002135111,
+    "solve_seconds": 0.85242337,
+    "spatial_seconds": 0.24093274,
+    "spectral_seconds": 0.067675254,
+    "preconditioner_seconds": 0.31561646
+  },
+  {
+    "step": 5,
+    "true_relative_residual": 9.72698039e-09,
+    "iterations": 24,
+    "operator_apps": 50,
+    "preconditioner_apps": 48,
+    "reductions": 74,
+    "update_seconds": 0.002228056,
+    "solve_seconds": 0.80086048,
+    "spatial_seconds": 0.23121839,
+    "spectral_seconds": 0.062820148,
+    "preconditioner_seconds": 0.29218328
+  }
+]

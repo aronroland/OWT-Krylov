@@ -1,0 +1,15 @@
+[
+  "/opt/AMD uProf/bin/AMDuProfCLI-bin",
+  "collect",
+  "--config",
+  "hotspots",
+  "--mpi",
+  "-g",
+  "--working-dir",
+  "/home/aron/git/OWT-Krylov/docs/application-performance/runs/uprof-report-gates-20260914",
+  "--log-path",
+  "/home/aron/git/OWT-Krylov/docs/application-performance/runs/uprof-report-gates-20260914/uprof-logs",
+  "--output-dir",
+  "/home/aron/git/OWT-Krylov/docs/application-performance/runs/uprof-report-gates-20260914/uprof",
+  "/repository/build with spaces/ww-x"
+]

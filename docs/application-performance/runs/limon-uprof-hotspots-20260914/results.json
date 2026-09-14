@@ -1,0 +1,18 @@
+[
+  {
+    "label": "baseline",
+    "repetition": 0,
+    "process_seconds": 41.55562012200244,
+    "measurement_kind": "unprofiled",
+    "integration_seconds": 29.790179049,
+    "vertices": 1778,
+    "components": 1296,
+    "state_bitwise_equal": true,
+    "iterations": 721,
+    "max_residual": 9.72698039e-09,
+    "solver_seconds_rank0": 25.03924606,
+    "spatial_seconds_rank0": 7.951470914,
+    "spectral_seconds_rank0": 1.843112283,
+    "preconditioner_seconds_rank0": 8.124862176
+  }
+]

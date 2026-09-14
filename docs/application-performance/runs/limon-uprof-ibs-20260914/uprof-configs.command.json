@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "/opt/AMDuProf_5.3-521/bin/AMDuProfCLI-bin",
+    "info",
+    "--list",
+    "collect-configs"
+  ],
+  "cwd": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-ibs-20260914"
+}

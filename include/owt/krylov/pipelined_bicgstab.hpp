@@ -168,11 +168,23 @@ template<std::floating_point T,
             return result;
         }
 
-        axpy(alpha, preconditioned_search, solution);
-        axpy(omega, preconditioned_intermediate, solution);
-        for (std::size_t i = 0; i < rhs.owned_size(); ++i) {
-            residual.data()[i] = intermediate.data()[i]
-                - omega * operator_intermediate.data()[i];
+        // Keep both solution updates in the same cache-sized slice. Reuse the
+        // existing SIMD kernels so each component retains its operation order.
+        if (!preconditioned_search.same_layout(solution)
+            || !preconditioned_intermediate.same_layout(solution)) {
+            throw std::invalid_argument("BlockVector layout mismatch");
+        }
+        constexpr std::size_t update_tile = 256;
+        for (std::size_t first = 0; first < rhs.owned_size(); first += update_tile) {
+            const std::size_t count = std::min(update_tile, rhs.owned_size() - first);
+            simd::axpy(solution.data() + first, alpha,
+                       preconditioned_search.data() + first, count);
+            simd::axpy(solution.data() + first, omega,
+                       preconditioned_intermediate.data() + first, count);
+            for (std::size_t i = first; i < first + count; ++i) {
+                residual.data()[i] = intermediate.data()[i]
+                    - omega * operator_intermediate.data()[i];
+            }
         }
 
         std::array<detail::local_scalar_t<Reduction, T>, 2> local_next{

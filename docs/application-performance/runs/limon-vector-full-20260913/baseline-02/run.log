@@ -1,0 +1,37 @@
+[t14s:629443] MCW rank 3 bound to socket 0[core 3[hwt 0-1]]: [../../../BB/../../../..]
+[t14s:629443] MCW rank 0 bound to socket 0[core 0[hwt 0-1]]: [BB/../../../../../../..]
+[t14s:629443] MCW rank 1 bound to socket 0[core 1[hwt 0-1]]: [../BB/../../../../../..]
+[t14s:629443] MCW rank 2 bound to socket 0[core 2[hwt 0-1]]: [../../BB/../../../../..]
+ww-x 9c0befac-dirty (built 2026-09-13T18:04:57Z)
+Domain Decomping using repart
+Domain nNodes nGhosts ghosts% total% chunk%
+0 444 60 13.513513565063477 24.971878051757812 100
+1 445 67 15.056180000305176 25.028121948242188 100.22522735595703
+2 444 40 9.0090093612670898 24.971878051757812 100
+3 445 41 9.2134828567504883 25.028121948242188 100.22522735595703
+
+Max neighbor domain 2
+nThreads minNodes maxNodes meanNodes minGhosts maxGhosts meanGhosts minNeighbors maxNeighbors meanNeighbors
+4 444 445 444.5 40 67 52 2 3 2.5
+Solver: solver_type=22, rtol=1e-08, maxiter=1000, check_interval=1, omega=1
+Filling 3D look-up table for SIN4. please wait...
+
+╔════════════════════════════════════════════════════════════════╗
+║             TRITON-C Wave Model - Time Integration            ║
+╚════════════════════════════════════════════════════════════════╝
+
+  Configuration:
+    • Timesteps:  36 × 600s = 6.0 hours
+    • Grid:       1778 nodes, 36 frequencies, 36 directions
+    • MPI ranks:  4
+    • Solver:     solver_type=22
+
+IT=    0/36 (  0%)  t=0.0h
+  Matrix: RHS=6.58e+01, DIAG=2.27e+09
+OWT-Krylov: 4 iterations, true_rel_residual=4.46773100e-09, linear_rel_residual=4.467731e-09, projected_entries=0, state=pre_physics_limiters, step=0, status=converged, operator_apps=10, preconditioner_apps=8, reductions=14, spatial_seconds=0.04666419, spectral_seconds=0.012576105, preconditioner_seconds=0.05190862, update=0.007191372 s, solve=0.17261885 s
+  After solver - owned action sum: 7.74727810e-02
+nbIter = 4
+nConverged 0 0
+OWT-Krylov: 28 iterations, true_rel_residual=9.13975098e-11, linear_rel_residual=9.139751e-11, projected_entries=0, state=pre_physics_limiters, step=1, status=converged, operator_apps=58, preconditioner_apps=56, reductions=86, spatial_seconds=0.27456559, spectral_seconds=0.077943718, preconditioner_seconds=0.36467731, update=0.002083289 s, solve=0.95793599 s
+nbIter = 28
+nConverged 0 0

@@ -1,0 +1,37 @@
+[t14s:1446399] MCW rank 2 bound to socket 0[core 2[hwt 0-1]]: [../../BB/../../../../..]
+[t14s:1446399] MCW rank 3 bound to socket 0[core 3[hwt 0-1]]: [../../../BB/../../../..]
+[t14s:1446399] MCW rank 0 bound to socket 0[core 0[hwt 0-1]]: [BB/../../../../../../..]
+[t14s:1446399] MCW rank 1 bound to socket 0[core 1[hwt 0-1]]: [../BB/../../../../../..]
+	Log file is at: /home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/profile-00/uprof-logs/aron-AMDuProfCLI.log
+
+WARNING: --call-graph dwarf:4096 option will be deprecated.
+WARNING: --call-graph dwarf:4096 option will be deprecated.
+WARNING: --call-graph dwarf:4096 option will be deprecated.
+WARNING: --call-graph dwarf:4096 option will be deprecated.
+Ignoring call graph mode fpo / dwarf as it is not supported with Hotspots and Threading analysis.
+Ignoring call graph mode fpo / dwarf as it is not supported with Hotspots and Threading analysis.
+Ignoring call graph mode fpo / dwarf as it is not supported with Hotspots and Threading analysis.
+Ignoring call graph mode fpo / dwarf as it is not supported with Hotspots and Threading analysis.
+ERROR: For non-root users, perf_event_paranoid value should be <= 3 for launch app or already running processes:
+       Please configure /proc/sys/kernel/perf_event_paranoid with appropriate value.
+ERROR: For non-root users, perf_event_paranoid value should be <= 3 for launch app or already running processes:
+       Please configure /proc/sys/kernel/perf_event_paranoid with appropriate value.
+ERROR: For non-root users, perf_event_paranoid value should be <= 3 for launch app or already running processes:
+       Please configure /proc/sys/kernel/perf_event_paranoid with appropriate value.
+ERROR: For non-root users, perf_event_paranoid value should be <= 3 for launch app or already running processes:
+       Please configure /proc/sys/kernel/perf_event_paranoid with appropriate value.
+ERROR: Collection of profile data failed 
+ERROR: Collection of profile data failed 
+ERROR: Collection of profile data failed 
+ERROR: Collection of profile data failed 
+--------------------------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpiexec.openmpi detected that one or more processes exited with non-zero status, thus causing
+the job to be terminated. The first process to do so was:
+
+  Process name: [[62027,1],2]
+  Exit code:    50
+--------------------------------------------------------------------------

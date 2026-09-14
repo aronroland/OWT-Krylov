@@ -1,0 +1,100 @@
+&NML_MAIN
+  LSPHE = F
+  DT4A = 600
+  MNT = 36
+  REFREACTION = T
+  FREQ_SHIFT = F
+  BOUNDARY = F
+  BOUNDARYSTEADY = F
+/
+&NML_SPECTRA
+  ND = 36
+  NS = 36
+  XFR = 1.1
+  FRLOW = 0.04
+  MINDIR = 0
+/
+&NML_WIND
+  LWINDSTEADY = T
+  WIND10 = 20
+  WINDDIR = 270
+  windfile = wind.bin
+/
+&NML_HISTORY
+  ISKIPOUT = 6
+  outstyle = "XFN"
+  historypoints = F
+/
+&NML_NUM
+  EMU_WW3 = T
+  skip_converged = F
+  cache_ASPAR_DIAG = F
+  action_limiter = T
+  action_limiter_type = 0
+  breaking_limiter = T
+  solver_type = 12
+  solver_rtol = 1e-8
+  convergence_criteria = 1
+  solver_check_interval = 1
+/
+&NML_SOURCES
+  LST1 = F
+  LST4 = T
+  clin = 80
+  fspm = 1
+  fshf = 0.5
+/
+&NML_ST4
+  WNMEANPTAIL = -0.5
+  FXPM3 = 4
+  FXFM3 = 2.5
+  FXFMAGE = 0
+  BETAMAX = 1.43
+  Z0RAT = 0.04
+  SWELLF = 0.66
+  SWELLF2 = -0.018
+  SWELLF3 = 0.022
+  SWELLF4 = 150000
+  SWELLF5 = 1.2
+  SWELLF6 = 0
+  SWELLF7 = 360000
+  SINTHP = 2
+  ZALP = 0.006
+  TAUWSHELTER = 0.3
+  SDSBR = 0.0009
+  DTH = 80
+  COS = 2
+  SDSC2 = -2.2e-05
+  SDSC5 = 0
+  SDSC6 = 0.3
+  SDSP = 2
+  SDSCUM = -0.40344
+  NUW = 0
+  BRF1 = 0.5
+  ITAUMAX = 200
+  JUMAX = 200
+  Z0MAX = 0
+  ZWND = 10
+  IALPHA = 200
+  IUSTAR = 100
+  ILEVTAIL = 50
+  ALPHA0 = 0.0095
+/
+&NML_SNL4
+  LAMBDANL4 = 0.25
+  NLPROP = 2.5e+07
+  C1 = 2703.787
+  CS1 = 5.5
+  CS2 = 0.833
+  CS3 = -1.25
+/
+&NML_DomainDecomp
+  PARMETIS = F
+  REPART = T
+  HILBERT = F
+  disabledNodeWeight = 1
+  writeDomainDecomposedMesh = F
+  printStatistics = T
+  hilbert_local_reorder = F
+  local_ordering = 0
+/

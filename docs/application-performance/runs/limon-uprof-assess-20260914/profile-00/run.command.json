@@ -1,0 +1,31 @@
+{
+  "argv": [
+    "/usr/bin/mpiexec.openmpi",
+    "--bind-to",
+    "core",
+    "--map-by",
+    "core",
+    "--report-bindings",
+    "-n",
+    "4",
+    "/opt/AMDuProf_5.3-521/bin/AMDuProfCLI-bin",
+    "collect",
+    "--config",
+    "assess",
+    "--mpi",
+    "--working-dir",
+    "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-assess-20260914/profile-00",
+    "--log-path",
+    "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-assess-20260914/profile-00/uprof-logs",
+    "--output-dir",
+    "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-assess-20260914/profile-00/uprof",
+    "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x",
+    "--input",
+    "wwx.nml",
+    "--solver",
+    "22",
+    "--final-state",
+    "final-state"
+  ],
+  "cwd": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-assess-20260914/profile-00"
+}

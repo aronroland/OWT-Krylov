@@ -1,0 +1,72 @@
+[t14s:624652] MCW rank 0 bound to socket 0[core 0[hwt 0-1]]: [BB/../../../../../../..]
+[t14s:624652] MCW rank 1 bound to socket 0[core 1[hwt 0-1]]: [../BB/../../../../../..]
+[t14s:624652] MCW rank 2 bound to socket 0[core 2[hwt 0-1]]: [../../BB/../../../../..]
+[t14s:624652] MCW rank 3 bound to socket 0[core 3[hwt 0-1]]: [../../../BB/../../../..]
+ww-x 9c0befac-dirty (built 2026-09-13T18:04:57Z)
+Domain Decomping using repart
+Domain nNodes nGhosts ghosts% total% chunk%
+0 444 60 13.513513565063477 24.971878051757812 100
+1 445 67 15.056180000305176 25.028121948242188 100.22522735595703
+2 444 40 9.0090093612670898 24.971878051757812 100
+3 445 41 9.2134828567504883 25.028121948242188 100.22522735595703
+
+Max neighbor domain 2
+nThreads minNodes maxNodes meanNodes minGhosts maxGhosts meanGhosts minNeighbors maxNeighbors meanNeighbors
+4 444 445 444.5 40 67 52 2 3 2.5
+Solver: solver_type=22, rtol=1e-08, maxiter=1000, check_interval=1, omega=1
+Filling 3D look-up table for SIN4. please wait...
+
+╔════════════════════════════════════════════════════════════════╗
+║             TRITON-C Wave Model - Time Integration            ║
+╚════════════════════════════════════════════════════════════════╝
+
+  Configuration:
+    • Timesteps:  6 × 600s = 1.0 hours
+    • Grid:       1778 nodes, 36 frequencies, 36 directions
+    • MPI ranks:  4
+    • Solver:     solver_type=22
+
+IT=    0/6 (  0%)  t=0.0h
+  Matrix: RHS=6.58e+01, DIAG=2.27e+09
+OWT-Krylov: 4 iterations, true_rel_residual=4.46773100e-09, linear_rel_residual=4.467731e-09, projected_entries=0, state=pre_physics_limiters, step=0, status=converged, operator_apps=10, preconditioner_apps=8, reductions=14, spatial_seconds=0.050649741, spectral_seconds=0.012977017, preconditioner_seconds=0.050051129, update=0.007714186 s, solve=0.18075009 s
+  After solver - owned action sum: 7.74727810e-02
+nbIter = 4
+nConverged 0 0
+OWT-Krylov: 28 iterations, true_rel_residual=9.13975098e-11, linear_rel_residual=9.139751e-11, projected_entries=0, state=pre_physics_limiters, step=1, status=converged, operator_apps=58, preconditioner_apps=56, reductions=86, spatial_seconds=0.25667589, spectral_seconds=0.063243149, preconditioner_seconds=0.34861434, update=0.002538236 s, solve=1.006618 s
+nbIter = 28
+nConverged 0 0
+OWT-Krylov: 26 iterations, true_rel_residual=3.01118011e-09, linear_rel_residual=3.0111801e-09, projected_entries=0, state=pre_physics_limiters, step=2, status=converged, operator_apps=54, preconditioner_apps=52, reductions=80, spatial_seconds=0.24045101, spectral_seconds=0.056894429, preconditioner_seconds=0.31911133, update=0.002244877 s, solve=0.92349021 s
+nbIter = 26
+nConverged 0 0
+OWT-Krylov: 25 iterations, true_rel_residual=9.72118419e-09, linear_rel_residual=9.7211842e-09, projected_entries=0, state=pre_physics_limiters, step=3, status=converged, operator_apps=52, preconditioner_apps=50, reductions=78, spatial_seconds=0.25145098, spectral_seconds=0.05971591, preconditioner_seconds=0.32244815, update=0.002777685 s, solve=0.96536221 s
+nbIter = 25
+nConverged 0 0
+OWT-Krylov: 25 iterations, true_rel_residual=9.36925766e-09, linear_rel_residual=9.3692577e-09, projected_entries=0, state=pre_physics_limiters, step=4, status=converged, operator_apps=52, preconditioner_apps=50, reductions=77, spatial_seconds=0.24293498, spectral_seconds=0.054985858, preconditioner_seconds=0.30022096, update=0.002259604 s, solve=0.93595136 s
+nbIter = 25
+nConverged 0 0
+OWT-Krylov: 24 iterations, true_rel_residual=9.72698039e-09, linear_rel_residual=9.7269804e-09, projected_entries=0, state=pre_physics_limiters, step=5, status=converged, operator_apps=50, preconditioner_apps=48, reductions=74, spatial_seconds=0.28469745, spectral_seconds=0.059993926, preconditioner_seconds=0.29067368, update=0.00256668 s, solve=0.94003788 s
+nbIter = 24
+nConverged 0 0
+Timings:
+FKM       : 0.1923 +- 0.01678 sec 3.271 %
+Sources   : 0.4614 +- 0.04484 sec 7.848 %
+  SPR     : 0.05297 sec 0.901 %
+  SIN4    : 0.0842 sec 1.432 %
+  SDS4    : 0.2058 sec 3.501 %
+  FMEANWS : 0.005452 sec 0.09273 %
+  SINLIN  : 0.007938 sec 0.135 %
+  SBREAK  : 0.007862 sec 0.1337 %
+  SNL4    : 0.0001057 sec 0.001798 %
+Solver    : 5.1 +- 0.06175 sec 86.75 %
+Limiter   : 0.02981 +- 0.003411 sec 0.5071 %
+Sources Post: 0.06554 +- 0.015 sec 1.115 %
+Rest      : 0.02978 sec
+Timestep  : 5.879 sec
+
+Integration wall seconds: 5.8790384510000004
+
+Simulation complete.
+wwx reached the end of a computation loop at 20:20:13
+Initialization time : 11.10 s
+Elapsed time        : 17.00 s
+Simulated time      : 3600.00 s

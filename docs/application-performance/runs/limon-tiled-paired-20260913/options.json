@@ -1,0 +1,11 @@
+{
+  "run_id": "limon-tiled-paired-20260913",
+  "specwave": "/home/aron/git/SpecWave",
+  "baseline": "docs/application-performance/runs/limon-kernel-profile-20260913/bin/ww-x",
+  "candidate": "docs/application-performance/runs/limon-ssor-tiled-20260913/bin/ww-x",
+  "ranks": 4,
+  "repetitions": 5,
+  "steps": null,
+  "detail_timings": false,
+  "build_only": false
+}

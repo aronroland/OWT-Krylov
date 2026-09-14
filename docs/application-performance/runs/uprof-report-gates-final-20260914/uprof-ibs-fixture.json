@@ -1,0 +1,14 @@
+[
+  "/opt/uprof/bin/AMDuProfCLI-bin",
+  "collect",
+  "--config",
+  "ibs",
+  "--mpi",
+  "--working-dir",
+  "/home/aron/git/OWT-Krylov/docs/application-performance/runs/uprof-report-gates-final-20260914",
+  "--log-path",
+  "/home/aron/git/OWT-Krylov/docs/application-performance/runs/uprof-report-gates-final-20260914/uprof-logs",
+  "--output-dir",
+  "/home/aron/git/OWT-Krylov/docs/application-performance/runs/uprof-report-gates-final-20260914/uprof",
+  "/repository/bin/ww-x"
+]

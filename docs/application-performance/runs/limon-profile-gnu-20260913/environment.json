@@ -1,0 +1,10 @@
+{
+  "METIS_PATH": "/home/aron/opt/parmetis_gfortran",
+  "TMPDIR": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-profile-gnu-20260913/runtime",
+  "OMPI_MCA_orte_tmpdir_base": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-profile-gnu-20260913/runtime",
+  "PRTE_MCA_prte_tmpdir_base": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-profile-gnu-20260913/runtime",
+  "OMPI_MCA_btl_vader_backing_directory": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-profile-gnu-20260913/runtime",
+  "OMP_NUM_THREADS": "1",
+  "OPENBLAS_NUM_THREADS": "1",
+  "MKL_NUM_THREADS": "1"
+}

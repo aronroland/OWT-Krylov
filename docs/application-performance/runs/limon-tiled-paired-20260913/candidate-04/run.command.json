@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "/usr/bin/mpiexec.openmpi",
+    "--bind-to",
+    "core",
+    "--map-by",
+    "core",
+    "--report-bindings",
+    "-n",
+    "4",
+    "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-ssor-tiled-20260913/bin/ww-x",
+    "--input",
+    "wwx.nml",
+    "--solver",
+    "22",
+    "--final-state",
+    "final-state"
+  ],
+  "cwd": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-tiled-paired-20260913/candidate-04"
+}

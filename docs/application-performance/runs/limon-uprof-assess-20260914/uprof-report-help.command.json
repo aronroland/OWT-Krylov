@@ -1,0 +1,8 @@
+{
+  "argv": [
+    "/opt/AMDuProf_5.3-521/bin/AMDuProfCLI-bin",
+    "report",
+    "--help"
+  ],
+  "cwd": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-assess-20260914"
+}

@@ -1,0 +1,333 @@
+diff --git a/TRITON-C/Tests/OWTKrylov/README.md b/TRITON-C/Tests/OWTKrylov/README.md
+index 6f1202aa..12d94b41 100644
+--- a/TRITON-C/Tests/OWTKrylov/README.md
++++ b/TRITON-C/Tests/OWTKrylov/README.md
+@@ -16,7 +16,9 @@ In this workspace the tested GNU installation is selected with
+ `METIS_PATH=/home/aron/opt/parmetis_gfortran` before the runner command.
+ By default it links the actual `ww-x/main.cpp` in both precisions and runs
+ 51 small wind-growth timesteps on 1/2 ranks, including matrix diagnostics at
+-steps 0 and 50. A rank-local bad-input run must terminate without hanging. Set
++steps 0 and 50. Final owned spectra are exported and checked for complete,
++nonduplicated global vertex coverage and finite nonnegative values in both
++precisions. A rank-local bad-input run must terminate without hanging. Set
+ `OWT_COMPILE_APPLICATION=OFF` for an adapter-only run. `SANITIZE=1` enables
+ ASan/UBSan; MPI leak detection is disabled in that mode.
+ 
+@@ -54,6 +56,23 @@ archived-reference validation, figure regeneration or performance measurement.
+ Second-order spectral deferred corrections are not supported by
+ this adapter yet and must fail explicitly instead of losing RHS terms.
+ 
++## Application profiling
++
++`ww-x --final-state PREFIX` writes `PREFIX-rank<RANK>.bin` after the last
++implicit timestep and all configured physical processing. The native-endian
++format is eight bytes `SWSTATE1`, then five unsigned 64-bit fields (scalar byte
++width, owned vertices, frequencies, directions, global vertices), then owned
++global IDs as unsigned 64-bit integers, then contiguous scalar values in
++`[owned vertex][frequency][direction]` order. Ghost spectra are excluded.
++The optional export also reports maximum-rank integration wall time before
++the snapshot write. It is a comparison artifact, not a portable restart file.
++
++Building with `-DSPECWAVE_DETAIL_TIMINGS` enables the existing application
++phase timers and rank-zero spatial/halo, spectral and SSOR timings inside the
++external solve. These do not separately measure communication or report
++critical-path phase maxima. The OWT-Krylov repository documents matched,
++retained Limon runs in `docs/LIMON_BENCHMARK.md`.
++
+ ## Pre-publication checks, 2026-09-13
+ 
+ | Run ID | Result |
+diff --git a/TRITON-C/Tests/OWTKrylov/test_application.py b/TRITON-C/Tests/OWTKrylov/test_application.py
+index 36d90c99..a5c01f2e 100644
+--- a/TRITON-C/Tests/OWTKrylov/test_application.py
++++ b/TRITON-C/Tests/OWTKrylov/test_application.py
+@@ -4,6 +4,7 @@ import math
+ from pathlib import Path
+ import re
+ import shutil
++import struct
+ import subprocess
+ import sys
+ 
+@@ -33,7 +34,8 @@ def run_case(name, commands, expected_success):
+ 
+ for ranks in (1, 2):
+     output = run_case(f"ranks-{ranks}", ["-n", str(ranks), str(BINARY),
+-                                        "--input", "application.nml"], True)
++                                        "--input", "application.nml",
++                                        "--final-state", "final-state"], True)
+     if "wwx reached the end of a computation loop" not in output:
+         raise ValueError("application completion missing")
+     if "Unknown line:" in output:
+@@ -44,7 +46,33 @@ for ranks in (1, 2):
+     matrices = re.findall(r"Matrix: RHS=([^,]+), DIAG=([^\s]+)", output)
+     if len(matrices) != 2 or not all(math.isfinite(float(x)) for row in matrices for x in row):
+         raise ValueError("diagnostic timesteps 0 and 50 not finite/present")
+-    print(f"PASS {BINARY.name}: {ranks} ranks, 51 steps, both matrix diagnostics", flush=True)
++    vertices = set()
++    global_count = None
++    for rank in range(ranks):
++        data = (RUN / f"ranks-{ranks}" / f"final-state-rank{rank}.bin").read_bytes()
++        if data[:8] != b"SWSTATE1" or len(data) < 48:
++            raise ValueError("invalid final state header")
++        width, owned, ns, nd, count = struct.unpack_from("=5Q", data, 8)
++        if width not in (4, 8) or not ns or not nd or not count or owned > count:
++            raise ValueError("invalid final state dimensions")
++        if global_count is not None and global_count != count:
++            raise ValueError("inconsistent global vertex count")
++        global_count = count
++        if len(data) != 48 + owned * (8 + ns * nd * width):
++            raise ValueError("invalid final state length")
++        ids = struct.unpack_from(f"={owned}Q", data, 48)
++        if len(set(ids)) != owned or vertices.intersection(ids):
++            raise ValueError("duplicated final state vertex")
++        vertices.update(ids)
++        values = struct.iter_unpack("=f" if width == 4 else "=d", data[48 + owned * 8:])
++        if any(not math.isfinite(value) or value < 0 for (value,) in values):
++            raise ValueError("nonfinite or negative final spectrum")
++    if vertices != set(range(global_count)):
++        raise ValueError("incomplete final state coverage")
++    integration = re.findall(r"^Integration wall seconds: (\S+)$", output, re.MULTILINE)
++    if len(integration) != 1 or not math.isfinite(float(integration[0])) or float(integration[0]) <= 0:
++        raise ValueError("missing or invalid integration timing")
++    print(f"PASS {BINARY.name}: {ranks} ranks, 51 steps, matrix diagnostics and final spectra", flush=True)
+ 
+ output = run_case("rank-local-input-failure",
+                  ["-n", "1", str(BINARY), "--input", "missing.nml", ":",
+diff --git a/TRITON-C/libwwx/OWTKrylovSolver.hpp b/TRITON-C/libwwx/OWTKrylovSolver.hpp
+index e204d357..74ab232b 100644
+--- a/TRITON-C/libwwx/OWTKrylovSolver.hpp
++++ b/TRITON-C/libwwx/OWTKrylovSolver.hpp
+@@ -128,6 +128,9 @@ public:
+         double structure_setup_seconds = 0;
+         double last_numeric_update_seconds = 0;
+         double last_solve_seconds = 0;
++        double spatial_seconds = 0;
++        double spectral_seconds = 0;
++        double preconditioner_seconds = 0;
+         std::size_t structure_bytes = 0;
+         std::size_t numeric_updates = 0;
+         double linear_relative_residual = 0;
+@@ -310,14 +313,46 @@ public:
+         struct FullOperator {
+             decltype(spatial_operator)& spatial;
+             const OWTKrylovSpectralTerms<T>& spectral;
++#ifdef SPECWAVE_DETAIL_TIMINGS
++            double spatial_seconds = 0;
++            double spectral_seconds = 0;
++#endif
+             void apply(owt::krylov::BlockVector<T>& input,
+                        owt::krylov::BlockVector<T>& output)
+             {
++#ifdef SPECWAVE_DETAIL_TIMINGS
++                const auto started = std::chrono::steady_clock::now();
++#endif
+                 spatial.apply(input, output);
++#ifdef SPECWAVE_DETAIL_TIMINGS
++                const auto after_spatial = std::chrono::steady_clock::now();
++                spatial_seconds += std::chrono::duration<double>(after_spatial - started).count();
++#endif
+                 spectral.add(input, output);
++#ifdef SPECWAVE_DETAIL_TIMINGS
++                spectral_seconds += std::chrono::duration<double>(
++                    std::chrono::steady_clock::now() - after_spatial).count();
++#endif
+             }
+         } linear_operator{spatial_operator, spectral_terms};
+ 
++#ifdef SPECWAVE_DETAIL_TIMINGS
++        struct TimedPreconditioner {
++            owt::krylov::SplitLocalSsorPreconditioner<T, std::uint32_t>& ssor;
++            double seconds = 0;
++            void apply(const owt::krylov::BlockVector<T>& input,
++                       owt::krylov::BlockVector<T>& output)
++            {
++                const auto started = std::chrono::steady_clock::now();
++                ssor.apply(input, output);
++                seconds += std::chrono::duration<double>(
++                    std::chrono::steady_clock::now() - started).count();
++            }
++        } preconditioner{*ssor_};
++#else
++        auto& preconditioner = *ssor_;
++#endif
++
+         owt::krylov::SolverOptions<T> options;
+         options.relative_tolerance = relative_tolerance;
+         options.maximum_iterations = maximum_iterations;
+@@ -326,9 +361,14 @@ public:
+         options.verify_true_residual = true;
+         options.collect_timings = true;
+         last_result_ = owt::krylov::pipelined_bicgstab(
+-            linear_operator, rhs_, solution, options, *ssor_,
++            linear_operator, rhs_, solution, options, preconditioner,
+             owt::krylov::MpiReduction<T>(dd.comm), &workspace_);
+         telemetry_.last_solve_seconds = last_result_.solve_seconds();
++#ifdef SPECWAVE_DETAIL_TIMINGS
++        telemetry_.spatial_seconds = linear_operator.spatial_seconds;
++        telemetry_.spectral_seconds = linear_operator.spectral_seconds;
++        telemetry_.preconditioner_seconds = preconditioner.seconds;
++#endif
+ 
+         if (!last_result_.converged() && dd.myrank == 0) {
+             std::cerr << "OWT-Krylov: "
+diff --git a/TRITON-C/libwwx/RDschemes_implicit_V2.hpp b/TRITON-C/libwwx/RDschemes_implicit_V2.hpp
+index da22b812..b5d8a9cf 100644
+--- a/TRITON-C/libwwx/RDschemes_implicit_V2.hpp
++++ b/TRITON-C/libwwx/RDschemes_implicit_V2.hpp
+@@ -1664,6 +1664,16 @@ struct NScheme_implicit_V2 {
+                           << ", linear_rel_residual=" << telemetry.linear_relative_residual
+                           << ", projected_entries=" << telemetry.projected_entries
+                           << ", state=pre_physics_limiters"
++                          << ", step=" << IT
++                          << ", status=" << owt::krylov::to_string(result.status)
++                          << ", operator_apps=" << result.operator_applications
++                          << ", preconditioner_apps=" << result.preconditioner_applications
++                          << ", reductions=" << result.global_reductions
++#ifdef SPECWAVE_DETAIL_TIMINGS
++                          << ", spatial_seconds=" << telemetry.spatial_seconds
++                          << ", spectral_seconds=" << telemetry.spectral_seconds
++                          << ", preconditioner_seconds=" << telemetry.preconditioner_seconds
++#endif
+                           << ", update=" << telemetry.last_numeric_update_seconds
+                           << " s, solve=" << telemetry.last_solve_seconds << " s\n";
+             }
+diff --git a/TRITON-C/regression/unsteady/limon/wwx_bench.nml b/TRITON-C/regression/unsteady/limon/wwx_bench.nml
+index 6240aecb..6aad8f32 100644
+--- a/TRITON-C/regression/unsteady/limon/wwx_bench.nml
++++ b/TRITON-C/regression/unsteady/limon/wwx_bench.nml
+@@ -34,7 +34,8 @@
+   breaking_limiter = T
+   solver_type = 12
+   solver_rtol = 1e-8
+-  stopping_criteria = 1
++  convergence_criteria = 1
++  solver_check_interval = 1
+ /
+ &NML_SOURCES
+   LST1 = F
+diff --git a/TRITON-C/ww-x/main.cpp b/TRITON-C/ww-x/main.cpp
+index 2deb86fd..93bbcc93 100644
+--- a/TRITON-C/ww-x/main.cpp
++++ b/TRITON-C/ww-x/main.cpp
+@@ -20,6 +20,7 @@
+ #include <iostream>
+ #include <chrono>
+ #include <filesystem>
++#include <BinaryWriter.hpp>
+ 
+ // C++23 float16_t
+ #if __has_include(<stdfloat>)
+@@ -97,15 +98,19 @@ steady_clock::time_point endInitTime;
+ 
+ 
+ template<bool use_jacobi, typename T=double>
+-void calc_implicit_impl(DomainDecomposition& dd, const Settings& conf, Mesh<T>& mesh, Array1D<NodeID,BC>& IOBP) {
++void calc_implicit_impl(DomainDecomposition& dd, const Settings& conf, Mesh<T>& mesh,
++                        Array1D<NodeID,BC>& IOBP, const std::string& final_state_prefix) {
+ #ifdef DEBUG_INITTRACE
+     dbg << "Start of calc_implicit\n" << std::flush;
+ #endif
+     // write nodeconvergenz.bin file which contains number of iteration of every single node
+     constexpr bool write_nodeconvergenz = false;
+     // Enable to get detailed timing about sources advection limiter etc
+-    //DAH constexpr bool detail_timings = false;
++#ifdef SPECWAVE_DETAIL_TIMINGS
++    constexpr bool detail_timings = true;
++#else
+     constexpr bool detail_timings = false;
++#endif
+     //
+     constexpr bool LADVTEST = false;
+ 
+@@ -320,6 +325,7 @@ void calc_implicit_impl(DomainDecomposition& dd, const Settings& conf, Mesh<T>&
+         std::cout << "    • Solver:     solver_type=" << conf.num.solver_type << "\n\n";
+     }
+ 
++    const auto integration_started = steady_clock::now();
+     for(int IT=0; IT < conf.main.MNT; ++IT) {
+         double curTime = conf.main.DT4A*IT;
+         if(IT%conf.history.ISKIPOUT == 0 && dd.myrank == 0) {
+@@ -755,9 +761,30 @@ void calc_implicit_impl(DomainDecomposition& dd, const Settings& conf, Mesh<T>&
+         }
+     }
+ 
+-    if(dd.myrank == 0) {
+-        std::cout << "\nSimulation complete.\n";
++    if(!final_state_prefix.empty()) {
++        const double local_seconds = duration<double>(steady_clock::now() - integration_started).count();
++        double integration_seconds = 0;
++        MPI_Reduce(&local_seconds, &integration_seconds, 1, MPI_DOUBLE, MPI_MAX, 0, dd.comm);
++        if(dd.myrank == 0) {
++            std::cout << "Integration wall seconds: " << std::setprecision(17)
++                      << integration_seconds << '\n';
++        }
++        // Native-endian snapshot: magic, five uint64 fields, owned global IDs,
++        // then contiguous [vertex][frequency][direction] scalar values.
++        BinaryWriter output(final_state_prefix + "-rank" + std::to_string(dd.myrank) + ".bin");
++        output.stream().write("SWSTATE1", 8);
++        for(const std::uint64_t field : {std::uint64_t(sizeof(T)), std::uint64_t(dd.np),
++                std::uint64_t(conf.spec.NS), std::uint64_t(conf.spec.ND), std::uint64_t(dd.np_global)}) {
++            output.write(field);
++        }
++        for(NodeID ip{0}; ip < dd.np; ++ip) output.write(std::uint64_t(dd.iplg(ip).value));
++        const auto bytes = std::size_t(dd.np) * conf.spec.NS * conf.spec.ND * sizeof(T);
++        output.stream().write(reinterpret_cast<const char*>(wave_spec2.WAD.data()),
++                              static_cast<std::streamsize>(bytes));
++        output.stream().flush();
++        if(!output.stream()) throw std::runtime_error("could not write final wave state");
+     }
++    if(dd.myrank == 0) std::cout << "\nSimulation complete.\n";
+ }
+ 
+ 
+@@ -857,17 +884,19 @@ void calc_explicit(const DomainDecomposition& dd, const Settings& conf, const Me
+ // use_jacobi=true needed for: Jacobi (0), Chebyshev (2), Anderson acceleration
+ // use_jacobi=false for: Gauss-Seidel (1), PETSc (4,6), BiCGSTAB (5,7)
+ template<typename T=double>
+-void calc_implicit(DomainDecomposition& dd, const Settings& conf, Mesh<T>& mesh, Array1D<NodeID,BC>& IOBP) {
++void calc_implicit(DomainDecomposition& dd, const Settings& conf, Mesh<T>& mesh,
++                   Array1D<NodeID,BC>& IOBP, const std::string& final_state_prefix) {
+     bool need_jacobi = (conf.num.solver_type == 0 || conf.num.solver_type == 2 || conf.num.anderson_acceleration);
+     if(need_jacobi) {
+-        calc_implicit_impl<true, T>(dd, conf, mesh, IOBP);
++        calc_implicit_impl<true, T>(dd, conf, mesh, IOBP, final_state_prefix);
+     } else {
+-        calc_implicit_impl<false, T>(dd, conf, mesh, IOBP);
++        calc_implicit_impl<false, T>(dd, conf, mesh, IOBP, final_state_prefix);
+     }
+ }
+ 
+ struct CLIArgs {
+     std::string input_file = "wwx.nml";
++    std::string final_state_prefix;
+     int solver_type = -1;
+     bool help = false;
+ };
+@@ -884,6 +913,9 @@ static CLIArgs parse_args(int argc, char* argv[]) {
+             else { std::cerr << "Error: " << a << " requires a filename\n"; std::exit(1); }
+         } else if(a.rfind("--input=", 0) == 0) {
+             args.input_file = a.substr(8);
++        } else if(a == "--final-state") {
++            if(i + 1 < argc) { args.final_state_prefix = argv[++i]; }
++            else { std::cerr << "Error: " << a << " requires a filename prefix\n"; std::exit(1); }
+         } else if(a == "--solver") {
+             if(i + 1 < argc) { args.solver_type = std::stoi(argv[++i]); }
+             else { std::cerr << "Error: " << a << " requires an integer\n"; std::exit(1); }
+@@ -912,6 +944,7 @@ static void print_usage(const char* prog) {
+               << "Options:\n"
+               << "  -i, --input FILE   Namelist input file (default: wwx.nml)\n"
+               << "      --solver ID    Override solver_type without modifying the NML\n"
++              << "      --final-state PREFIX  Write final owned spectra, one binary file per rank\n"
+               << "  -h, --help         Show this help message\n";
+ }
+ 
+@@ -1000,7 +1033,7 @@ int main(int argc, char* argv[]) {
+ 
+ 
+         //calc_explicit(dd, conf, mesh_local);
+-        calc_implicit<T>(dd, conf, mesh_local, IOBP);
++        calc_implicit<T>(dd, conf, mesh_local, IOBP, cli.final_state_prefix);
+ 
+         // WAVEWATCH III reached the end of a computation loop at 05:23:04
+         // Initialization time :     31.45 s

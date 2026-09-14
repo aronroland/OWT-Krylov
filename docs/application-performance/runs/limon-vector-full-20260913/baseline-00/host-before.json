@@ -1,0 +1,21 @@
+{
+  "/proc/loadavg": "3.19 4.10 3.15 2/2225 625496",
+  "/proc/meminfo": "MemTotal:       31460404 kB\nMemFree:         9286868 kB\nMemAvailable:   21003784 kB\nBuffers:         2561152 kB\nCached:          9038172 kB\nSwapCached:      1089772 kB\nActive:         10435332 kB\nInactive:        8331520 kB\nActive(anon):    6015248 kB\nInactive(anon):  1773380 kB\nActive(file):    4420084 kB\nInactive(file):  6558140 kB\nUnevictable:          16 kB\nMlocked:              16 kB\nSwapTotal:      31229948 kB\nSwapFree:       29287784 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:             50148 kB\nWriteback:            12 kB\nAnonPages:       7104992 kB\nMapped:          1927160 kB\nShmem:            621072 kB\nKReclaimable:    1189404 kB\nSlab:            1603468 kB\nSReclaimable:    1189404 kB\nSUnreclaim:       414064 kB\nKernelStack:       35836 kB\nPageTables:       124920 kB\nSecPageTables:      4268 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:    46960148 kB\nCommitted_AS:   46767012 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:      139936 kB\nVmallocChunk:          0 kB\nPercpu:            20032 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:    505856 kB\nFilePmdMapped:      2048 kB\nCmaTotal:              0 kB\nCmaFree:           36256 kB\nUnaccepted:            0 kB\nBalloon:               0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:     8132792 kB\nDirectMap2M:    21909504 kB\nDirectMap1G:     3145728 kB",
+  "/sys/devices/system/cpu/cpu11/cpufreq/scaling_cur_freq": "3268276",
+  "/sys/devices/system/cpu/cpu9/cpufreq/scaling_cur_freq": "419175",
+  "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq": "419175",
+  "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq": "419175",
+  "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq": "419175",
+  "/sys/devices/system/cpu/cpu14/cpufreq/scaling_cur_freq": "3265917",
+  "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq": "3263693",
+  "/sys/devices/system/cpu/cpu12/cpufreq/scaling_cur_freq": "419175",
+  "/sys/devices/system/cpu/cpu10/cpufreq/scaling_cur_freq": "3268758",
+  "/sys/devices/system/cpu/cpu8/cpufreq/scaling_cur_freq": "3268612",
+  "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq": "419175",
+  "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq": "3254401",
+  "/sys/devices/system/cpu/cpu15/cpufreq/scaling_cur_freq": "3272529",
+  "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq": "419175",
+  "/sys/devices/system/cpu/cpu13/cpufreq/scaling_cur_freq": "3267307",
+  "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "3268129",
+  "/sys/class/thermal/thermal_zone0/temp": "80000"
+}

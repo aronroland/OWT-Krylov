@@ -1,0 +1,30 @@
+{
+  "path": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-ibs-20260914/profile-00/uprof-report.csv",
+  "sha256": "09787aa7a4ef09a322f29f7f12090da837c744ee37a49f714ab7c4dac4e55437",
+  "ranks": [
+    {
+      "rank": 0,
+      "process": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x (PID:1466899)",
+      "metric": "IBS_ALL_OPS",
+      "reported_value": "17.49%"
+    },
+    {
+      "rank": 1,
+      "process": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x (PID:1466902)",
+      "metric": "IBS_ALL_OPS",
+      "reported_value": "27.51%"
+    },
+    {
+      "rank": 2,
+      "process": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x (PID:1466900)",
+      "metric": "IBS_ALL_OPS",
+      "reported_value": "28.49%"
+    },
+    {
+      "rank": 3,
+      "process": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x (PID:1466901)",
+      "metric": "IBS_ALL_OPS",
+      "reported_value": "26.51%"
+    }
+  ]
+}

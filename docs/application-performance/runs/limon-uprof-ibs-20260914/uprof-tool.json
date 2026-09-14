@@ -1,0 +1,6 @@
+{
+  "binary": "/opt/AMDuProf_5.3-521/bin/AMDuProfCLI-bin",
+  "sha256": "e8ef0135f884bdec04b7e1138c04df1b811233886cde4c2671d8677deb4caf3e",
+  "perf_event_paranoid": "0",
+  "kptr_restrict": "0"
+}

@@ -1,0 +1,7 @@
+{
+  "argv": [
+    "/opt/AMDuProf_5.3-521/bin/AMDuProfCLI-bin",
+    "--version"
+  ],
+  "cwd": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-retry-20260914"
+}

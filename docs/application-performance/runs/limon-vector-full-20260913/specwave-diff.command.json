@@ -1,0 +1,8 @@
+{
+  "argv": [
+    "git",
+    "diff",
+    "HEAD"
+  ],
+  "cwd": "/home/aron/git/SpecWave"
+}

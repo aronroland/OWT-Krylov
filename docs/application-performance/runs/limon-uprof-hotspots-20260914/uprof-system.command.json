@@ -1,0 +1,8 @@
+{
+  "argv": [
+    "/opt/AMDuProf_5.3-521/bin/AMDuProfCLI-bin",
+    "info",
+    "--system"
+  ],
+  "cwd": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914"
+}

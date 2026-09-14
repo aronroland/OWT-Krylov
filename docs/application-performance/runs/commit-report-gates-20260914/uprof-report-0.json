@@ -1,0 +1,30 @@
+{
+  "path": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-retry-20260914/profile-00/uprof-report.csv",
+  "sha256": "e7a2dd5724fc3091388b53a71d1aa286b64a06150c3d71547a92d2c4dd5bc6da",
+  "ranks": [
+    {
+      "rank": 0,
+      "process": "ww-x (PID:1452440)",
+      "metric": "CPU_TIME",
+      "reported_value": "24.98%"
+    },
+    {
+      "rank": 1,
+      "process": "ww-x (PID:1452442)",
+      "metric": "CPU_TIME",
+      "reported_value": "25.01%"
+    },
+    {
+      "rank": 2,
+      "process": "ww-x (PID:1452441)",
+      "metric": "CPU_TIME",
+      "reported_value": "25.00%"
+    },
+    {
+      "rank": 3,
+      "process": "ww-x (PID:1452439)",
+      "metric": "CPU_TIME",
+      "reported_value": "25.01%"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "label": "baseline",
+    "repetition": 0,
+    "process_seconds": 40.40349369100295,
+    "integration_seconds": 28.729843041,
+    "vertices": 1778,
+    "components": 1296,
+    "state_bitwise_equal": true,
+    "iterations": 721,
+    "max_residual": 9.72698039e-09,
+    "solver_seconds_rank0": 24.06538677
+  }
+]

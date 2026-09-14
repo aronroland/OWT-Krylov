@@ -1,0 +1,1 @@
+As log file path is not specified in options, AMDUPROF_LOGDIR environment variable is being used!

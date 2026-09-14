@@ -1,0 +1,98 @@
+[
+  {
+    "name": "valid reordered owned spectrum",
+    "passed": true
+  },
+  {
+    "name": "float spectrum",
+    "passed": true
+  },
+  {
+    "name": "missing rank",
+    "passed": true
+  },
+  {
+    "name": "duplicate global IDs",
+    "passed": true
+  },
+  {
+    "name": "wrong dimensions",
+    "passed": true
+  },
+  {
+    "name": "nan",
+    "passed": true
+  },
+  {
+    "name": "infinity",
+    "passed": true
+  },
+  {
+    "name": "negative",
+    "passed": true
+  },
+  {
+    "name": "truncated-header",
+    "passed": true
+  },
+  {
+    "name": "truncated-data",
+    "passed": true
+  },
+  {
+    "name": "extra-data",
+    "passed": true
+  },
+  {
+    "name": "wrong-magic",
+    "passed": true
+  },
+  {
+    "name": "valid solves",
+    "passed": true
+  },
+  {
+    "name": "missing-step",
+    "passed": true
+  },
+  {
+    "name": "duplicate-step",
+    "passed": true
+  },
+  {
+    "name": "wrong-step",
+    "passed": true
+  },
+  {
+    "name": "failed-status",
+    "passed": true
+  },
+  {
+    "name": "missing-completion",
+    "passed": true
+  },
+  {
+    "name": "unknown-input",
+    "passed": true
+  },
+  {
+    "name": "nan-time",
+    "passed": true
+  },
+  {
+    "name": "residual-nan",
+    "passed": true
+  },
+  {
+    "name": "residual-inf",
+    "passed": true
+  },
+  {
+    "name": "residual--1e-9",
+    "passed": true
+  },
+  {
+    "name": "residual-1.01e-8",
+    "passed": true
+  }
+]

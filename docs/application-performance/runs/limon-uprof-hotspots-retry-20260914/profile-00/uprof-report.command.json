@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "/opt/AMDuProf_5.3-521/bin/AMDuProfCLI-bin",
+    "report",
+    "--input-dir",
+    "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-retry-20260914/profile-00/uprof/AMDuProf-ww-x-Hotspots_MPI",
+    "--detail",
+    "--inline",
+    "--cutoff",
+    "0",
+    "--show-percentage",
+    "--log-path",
+    "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-retry-20260914/profile-00/uprof-logs",
+    "--report-output",
+    "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-retry-20260914/profile-00/uprof-report.csv"
+  ],
+  "cwd": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-retry-20260914/profile-00"
+}

@@ -1,0 +1,182 @@
+[
+  {
+    "name": "valid reordered owned spectrum",
+    "passed": true
+  },
+  {
+    "name": "float spectrum",
+    "passed": true
+  },
+  {
+    "name": "missing rank",
+    "passed": true
+  },
+  {
+    "name": "duplicate global IDs",
+    "passed": true
+  },
+  {
+    "name": "wrong dimensions",
+    "passed": true
+  },
+  {
+    "name": "nan",
+    "passed": true
+  },
+  {
+    "name": "infinity",
+    "passed": true
+  },
+  {
+    "name": "negative",
+    "passed": true
+  },
+  {
+    "name": "truncated-header",
+    "passed": true
+  },
+  {
+    "name": "truncated-data",
+    "passed": true
+  },
+  {
+    "name": "extra-data",
+    "passed": true
+  },
+  {
+    "name": "wrong-magic",
+    "passed": true
+  },
+  {
+    "name": "valid solves",
+    "passed": true
+  },
+  {
+    "name": "missing-step",
+    "passed": true
+  },
+  {
+    "name": "duplicate-step",
+    "passed": true
+  },
+  {
+    "name": "wrong-step",
+    "passed": true
+  },
+  {
+    "name": "failed-status",
+    "passed": true
+  },
+  {
+    "name": "missing-completion",
+    "passed": true
+  },
+  {
+    "name": "unknown-input",
+    "passed": true
+  },
+  {
+    "name": "nan-time",
+    "passed": true
+  },
+  {
+    "name": "residual-nan",
+    "passed": true
+  },
+  {
+    "name": "residual-inf",
+    "passed": true
+  },
+  {
+    "name": "residual--1e-9",
+    "passed": true
+  },
+  {
+    "name": "residual-1.01e-8",
+    "passed": true
+  },
+  {
+    "name": "AMD profiler argv preserves paths",
+    "passed": true
+  },
+  {
+    "name": "no Hotspots-only options in assess",
+    "passed": true
+  },
+  {
+    "name": "no Hotspots-only options in ibs",
+    "passed": true
+  },
+  {
+    "name": "no Hotspots-only options in tbp",
+    "passed": true
+  },
+  {
+    "name": "AMD rank coverage",
+    "passed": true
+  },
+  {
+    "name": "AMD numeric sample counts",
+    "passed": true
+  },
+  {
+    "name": "AMD summary process table",
+    "passed": true
+  },
+  {
+    "name": "AMD non-UTF-8 symbol records",
+    "passed": true
+  },
+  {
+    "name": "AMD rejects missing-table",
+    "passed": true
+  },
+  {
+    "name": "AMD rejects missing-rank",
+    "passed": true
+  },
+  {
+    "name": "AMD rejects duplicate-rank",
+    "passed": true
+  },
+  {
+    "name": "AMD rejects unexpected-rank",
+    "passed": true
+  },
+  {
+    "name": "AMD rejects wrong-header",
+    "passed": true
+  },
+  {
+    "name": "AMD rejects short-row",
+    "passed": true
+  },
+  {
+    "name": "AMD rejects sample-0",
+    "passed": true
+  },
+  {
+    "name": "AMD rejects sample--1",
+    "passed": true
+  },
+  {
+    "name": "AMD rejects sample-nan",
+    "passed": true
+  },
+  {
+    "name": "AMD rejects sample-inf",
+    "passed": true
+  },
+  {
+    "name": "retained AMD report /home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-retry-20260914/profile-00/uprof-report.csv",
+    "passed": true
+  },
+  {
+    "name": "retained AMD report /home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-assess-20260914/profile-00/uprof-report.csv",
+    "passed": true
+  },
+  {
+    "name": "retained AMD report /home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-ibs-20260914/profile-00/uprof-report.csv",
+    "passed": true
+  }
+]

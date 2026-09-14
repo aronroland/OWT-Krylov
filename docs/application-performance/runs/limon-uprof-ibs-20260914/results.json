@@ -1,0 +1,34 @@
+[
+  {
+    "label": "baseline",
+    "repetition": 0,
+    "process_seconds": 40.94276419800008,
+    "measurement_kind": "unprofiled",
+    "integration_seconds": 29.17193655,
+    "vertices": 1778,
+    "components": 1296,
+    "state_bitwise_equal": true,
+    "iterations": 721,
+    "max_residual": 9.72698039e-09,
+    "solver_seconds_rank0": 24.46565269,
+    "spatial_seconds_rank0": 7.218160273,
+    "spectral_seconds_rank0": 1.945331732,
+    "preconditioner_seconds_rank0": 9.061540332
+  },
+  {
+    "label": "profile",
+    "repetition": 0,
+    "process_seconds": 42.54869679699186,
+    "measurement_kind": "amd_uprof",
+    "integration_seconds": 29.618746878,
+    "vertices": 1778,
+    "components": 1296,
+    "state_bitwise_equal": true,
+    "iterations": 721,
+    "max_residual": 9.72698039e-09,
+    "solver_seconds_rank0": 24.72351414,
+    "spatial_seconds_rank0": 7.003189077,
+    "spectral_seconds_rank0": 1.917943253,
+    "preconditioner_seconds_rank0": 8.791428809
+  }
+]

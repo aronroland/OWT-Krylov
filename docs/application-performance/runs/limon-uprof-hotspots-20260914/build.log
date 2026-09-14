@@ -1,0 +1,3 @@
+make: Entering directory '/home/aron/git/SpecWave/TRITON-C/ww-x'
+/usr/bin/mpicxx.openmpi -DMPI_PARALL_GRID -DGIT_HASH='"abe2d6ba-dirty"' -DBUILD_DATE='"2026-09-14T07:55:39Z"' -std=c++20 -O3 -g1 -DNDEBUG -march=x86-64-v3 -mno-fma -fno-fast-math -ffp-contract=off -DSPECWAVE_DETAIL_TIMINGS -USINGLE   -fno-fast-math -DUSE_OWT_KRYLOV -DOWT_KRYLOV_ENABLE_MPI=1 -I/home/aron/git/OWT-Krylov/include -I../libwcore/libwcore/ -I../libwwx/ -I/home/aron/opt/parmetis_gfortran/include main.cpp /home/aron/opt/parmetis_gfortran/lib/libparmetis.a /home/aron/opt/parmetis_gfortran/lib/libmetis.a   -o /home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x
+make: Leaving directory '/home/aron/git/SpecWave/TRITON-C/ww-x'

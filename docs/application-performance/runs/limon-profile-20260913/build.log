@@ -1,0 +1,74 @@
+make: Entering directory '/home/aron/git/SpecWave/TRITON-C/ww-x'
+/usr/bin/mpicxx.openmpi -DMPI_PARALL_GRID -DGIT_HASH='"9c0befac-dirty"' -DBUILD_DATE='"2026-09-13T18:02:46Z"' -std=c++20 -O3 -g1 -DNDEBUG -march=x86-64-v3 -mno-fma -fno-fast-math -ffp-contract=off -DSPECWAVE_DETAIL_TIMINGS -USINGLE   -fno-fast-math -DUSE_OWT_KRYLOV -DOWT_KRYLOV_ENABLE_MPI=1 -I/home/aron/git/OWT-Krylov/include -I../libwcore/libwcore/ -I../libwwx/ -I/home/aron/opt/parmetis_intel/include main.cpp /home/aron/opt/parmetis_intel/lib/libparmetis.a /home/aron/opt/parmetis_intel/lib/libmetis.a   -o /home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-profile-20260913/bin/ww-x
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(graph.c.o): in function `libparmetis__SetupGraph':
+graph.c:(.text+0x3d): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(graph.c.o): in function `libparmetis__CreateGraph':
+graph.c:(.text+0x3f1): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(graph.c.o): in function `libparmetis__InitGraph':
+graph.c:(.text+0x610): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(kwayrefine.c.o): in function `libparmetis__ComputePartitionParams':
+kwayrefine.c:(.text+0xafb): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(match.c.o): in function `libparmetis__CreateCoarseGraph_Global':
+match.c:(.text+0x338c): undefined reference to `_intel_fast_memcpy'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(match.c.o): in function `libparmetis__CreateCoarseGraph_Local':
+match.c:(.text+0x50ab): undefined reference to `_intel_fast_memcpy'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(move.c.o): in function `libparmetis__MoveGraph':
+move.c:(.text+0xe6): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: move.c:(.text+0xb2f): undefined reference to `_intel_fast_memcpy'
+/usr/bin/ld: move.c:(.text+0x109c): undefined reference to `_intel_fast_memcpy'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(stat.c.o): in function `libparmetis__ComputeSerialBalance':
+stat.c:(.text+0x418): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(stat.c.o): in function `libparmetis__ComputeParallelBalance':
+stat.c:(.text+0xb9e): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(comm.c.o): in function `libparmetis__CommSetup':
+comm.c:(.text+0x7f1): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: comm.c:(.text+0x161b): undefined reference to `_intel_fast_memcpy'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(ctrl.c.o): in function `libparmetis__SetupCtrl':
+ctrl.c:(.text+0x47): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(diffutil.c.o): in function `libparmetis__ConjGrad2':
+diffutil.c:(.text+0xe31): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: diffutil.c:(.text+0x14af): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(diffutil.c.o): in function `libparmetis__mvMult2':
+diffutil.c:(.text+0x1721): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(initbalance.c.o): in function `libparmetis__Balance_Partition':
+initbalance.c:(.text+0x423): undefined reference to `_intel_fast_memcpy'
+/usr/bin/ld: initbalance.c:(.text+0x9cf): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(initbalance.c.o): in function `libparmetis__AssembleAdaptiveGraph':
+initbalance.c:(.text+0x19ec): undefined reference to `_intel_fast_memcpy'
+/usr/bin/ld: initbalance.c:(.text+0x1d4c): undefined reference to `_intel_fast_memcpy'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(mdiffusion.c.o): in function `libparmetis__ExtractGraph':
+mdiffusion.c:(.text+0x25be): undefined reference to `_intel_fast_memcpy'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(serial.c.o): in function `libparmetis__Mc_ComputeSerialPartitionParams':
+serial.c:(.text+0x88): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(serial.c.o): in function `libparmetis__Mc_SerialKWayAdaptRefine':
+serial.c:(.text+0x43d): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libparmetis.a(serial.c.o): in function `libparmetis__ComputeHKWayLoadImbalance':
+serial.c:(.text+0x13d8): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libmetis.a(memory.c.o): in function `gk_csmalloc':
+memory.c:(.text+0x219): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libmetis.a(memory.c.o): in function `gk_cset':
+memory.c:(.text+0x244): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libmetis.a(memory.c.o):memory.c:(.text+0x311): more undefined references to `_intel_fast_memset' follow
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libmetis.a(kmetis.c.o): in function `libmetis__InitKWayPartitioning':
+kmetis.c:(.text+0x6a9): undefined reference to `__svml_pow2'
+/usr/bin/ld: kmetis.c:(.text+0x6dc): undefined reference to `__svml_pow1'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libmetis.a(kwayrefine.c.o): in function `libmetis__ComputeKWayPartitionParams':
+kwayrefine.c:(.text+0x1ba9): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: kwayrefine.c:(.text+0x1dee): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libmetis.a(kwayrefine.c.o): in function `libmetis__ProjectKWayPartition':
+kwayrefine.c:(.text+0x274a): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: kwayrefine.c:(.text+0x2a3c): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libmetis.a(options.c.o): in function `libmetis__SetupCtrl':
+options.c:(.text+0x40): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libmetis.a(pmetis.c.o): in function `libmetis__SplitGraphPart':
+pmetis.c:(.text+0x1068): undefined reference to `_intel_fast_memcpy'
+/usr/bin/ld: pmetis.c:(.text+0x1260): undefined reference to `_intel_fast_memcpy'
+/usr/bin/ld: pmetis.c:(.text+0x1272): undefined reference to `_intel_fast_memcpy'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libmetis.a(balance.c.o): in function `libmetis__McGeneral2WayBalance':
+balance.c:(.text+0xf67): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: /home/aron/opt/parmetis_intel/lib/libmetis.a(mincover.c.o): in function `libmetis__MinCover':
+mincover.c:(.text+0x257): undefined reference to `_intel_fast_memset'
+/usr/bin/ld: mincover.c:(.text+0x26b): undefined reference to `_intel_fast_memset'
+collect2: error: ld returned 1 exit status
+make: *** [Makefile.linux:41: all] Error 1
+make: Leaving directory '/home/aron/git/SpecWave/TRITON-C/ww-x'

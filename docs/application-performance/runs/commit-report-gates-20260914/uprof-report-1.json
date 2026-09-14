@@ -1,0 +1,30 @@
+{
+  "path": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-assess-20260914/profile-00/uprof-report.csv",
+  "sha256": "02d98e743c3d67cbcf3db24409aec72c923f892658f57efa8c9cc3df1ddc217d",
+  "ranks": [
+    {
+      "rank": 0,
+      "process": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x (PID:1455973)",
+      "metric": "CYCLES_NOT_IN_HALT",
+      "reported_value": "27.15%"
+    },
+    {
+      "rank": 1,
+      "process": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x (PID:1455975)",
+      "metric": "CYCLES_NOT_IN_HALT",
+      "reported_value": "24.30%"
+    },
+    {
+      "rank": 2,
+      "process": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x (PID:1455976)",
+      "metric": "CYCLES_NOT_IN_HALT",
+      "reported_value": "24.28%"
+    },
+    {
+      "rank": 3,
+      "process": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x (PID:1455974)",
+      "metric": "CYCLES_NOT_IN_HALT",
+      "reported_value": "24.27%"
+    }
+  ]
+}

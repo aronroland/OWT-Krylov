@@ -1,0 +1,254 @@
+[t14s:614337] MCW rank 0 bound to socket 0[core 0[hwt 0-1]]: [BB/../../../../../../..]
+[t14s:614337] MCW rank 1 bound to socket 0[core 1[hwt 0-1]]: [../BB/../../../../../..]
+[t14s:614337] MCW rank 2 bound to socket 0[core 2[hwt 0-1]]: [../../BB/../../../../..]
+[t14s:614337] MCW rank 3 bound to socket 0[core 3[hwt 0-1]]: [../../../BB/../../../..]
+ww-x 9c0befac-dirty (built 2026-09-13T18:06:15Z)
+Domain Decomping using repart
+Domain nNodes nGhosts ghosts% total% chunk%
+0 444 60 13.513513565063477 24.971878051757812 100
+1 445 67 15.056180000305176 25.028121948242188 100.22522735595703
+2 444 40 9.0090093612670898 24.971878051757812 100
+3 445 41 9.2134828567504883 25.028121948242188 100.22522735595703
+
+Max neighbor domain 2
+nThreads minNodes maxNodes meanNodes minGhosts maxGhosts meanGhosts minNeighbors maxNeighbors meanNeighbors
+4 444 445 444.5 40 67 52 2 3 2.5
+Solver: solver_type=22, rtol=1e-08, maxiter=1000, check_interval=1, omega=1
+Filling 3D look-up table for SIN4. please wait...
+
+╔════════════════════════════════════════════════════════════════╗
+║             TRITON-C Wave Model - Time Integration            ║
+╚════════════════════════════════════════════════════════════════╝
+
+  Configuration:
+    • Timesteps:  36 × 600s = 6.0 hours
+    • Grid:       1778 nodes, 36 frequencies, 36 directions
+    • MPI ranks:  4
+    • Solver:     solver_type=22
+
+IT=    0/36 (  0%)  t=0.0h
+  Matrix: RHS=6.58e+01, DIAG=2.27e+09
+OWT-Krylov: 4 iterations, true_rel_residual=4.46773100e-09, linear_rel_residual=4.467731e-09, projected_entries=0, state=pre_physics_limiters, step=0, status=converged, operator_apps=10, preconditioner_apps=8, reductions=14, spatial_seconds=0.050329189, spectral_seconds=0.013917222, preconditioner_seconds=0.050636497, update=0.007278688 s, solve=0.17258792 s
+  After solver - owned action sum: 7.74727810e-02
+nbIter = 4
+nConverged 0 0
+OWT-Krylov: 28 iterations, true_rel_residual=9.13975098e-11, linear_rel_residual=9.139751e-11, projected_entries=0, state=pre_physics_limiters, step=1, status=converged, operator_apps=58, preconditioner_apps=56, reductions=86, spatial_seconds=0.2991035, spectral_seconds=0.082172979, preconditioner_seconds=0.35245463, update=0.001769247 s, solve=0.96351985 s
+nbIter = 28
+nConverged 0 0
+OWT-Krylov: 26 iterations, true_rel_residual=3.01118011e-09, linear_rel_residual=3.0111801e-09, projected_entries=0, state=pre_physics_limiters, step=2, status=converged, operator_apps=54, preconditioner_apps=52, reductions=80, spatial_seconds=0.28226788, spectral_seconds=0.076785148, preconditioner_seconds=0.33187187, update=0.002130146 s, solve=0.90651784 s
+nbIter = 26
+nConverged 0 0
+OWT-Krylov: 25 iterations, true_rel_residual=9.72118419e-09, linear_rel_residual=9.7211842e-09, projected_entries=0, state=pre_physics_limiters, step=3, status=converged, operator_apps=52, preconditioner_apps=50, reductions=78, spatial_seconds=0.23958511, spectral_seconds=0.0676627, preconditioner_seconds=0.31499379, update=0.001939217 s, solve=0.88321604 s
+nbIter = 25
+nConverged 0 0
+OWT-Krylov: 25 iterations, true_rel_residual=9.36925766e-09, linear_rel_residual=9.3692577e-09, projected_entries=0, state=pre_physics_limiters, step=4, status=converged, operator_apps=52, preconditioner_apps=50, reductions=77, spatial_seconds=0.24743313, spectral_seconds=0.07263678, preconditioner_seconds=0.3193006, update=0.002087986 s, solve=0.84360984 s
+nbIter = 25
+nConverged 0 0
+OWT-Krylov: 24 iterations, true_rel_residual=9.72698039e-09, linear_rel_residual=9.7269804e-09, projected_entries=0, state=pre_physics_limiters, step=5, status=converged, operator_apps=50, preconditioner_apps=48, reductions=74, spatial_seconds=0.22978552, spectral_seconds=0.064151422, preconditioner_seconds=0.30304801, update=0.00211126 s, solve=0.85061869 s
+nbIter = 24
+nConverged 0 0
+Timings:
+FKM       : 0.1759 +- 0.003822 sec 3.268 %
+Sources   : 0.4074 +- 0.005644 sec 7.57 %
+  SPR     : 0.04924 sec 0.9149 %
+  SIN4    : 0.075 sec 1.394 %
+  SDS4    : 0.1878 sec 3.49 %
+  FMEANWS : 0.004929 sec 0.09158 %
+  SINLIN  : 0.007179 sec 0.1334 %
+  SBREAK  : 0.007039 sec 0.1308 %
+  SNL4    : 9.762e-05 sec 0.001814 %
+Solver    : 4.712 +- 0.005762 sec 87.55 %
+Limiter   : 0.02424 +- 0.000399 sec 0.4504 %
+Sources Post: 0.05031 +- 0.0002775 sec 0.9349 %
+Rest      : 0.01214 sec
+Timestep  : 5.382 sec
+
+IT=    6/36 ( 16%)  t=1.0h speedup=668.9x
+OWT-Krylov: 24 iterations, true_rel_residual=3.76769204e-09, linear_rel_residual=3.767692e-09, projected_entries=0, state=pre_physics_limiters, step=6, status=converged, operator_apps=50, preconditioner_apps=48, reductions=74, spatial_seconds=0.23882416, spectral_seconds=0.071185766, preconditioner_seconds=0.30864173, update=0.002022734 s, solve=0.81630084 s
+nbIter = 24
+nConverged 0 0
+OWT-Krylov: 23 iterations, true_rel_residual=9.32646271e-09, linear_rel_residual=9.3264627e-09, projected_entries=0, state=pre_physics_limiters, step=7, status=converged, operator_apps=48, preconditioner_apps=46, reductions=72, spatial_seconds=0.22432601, spectral_seconds=0.063566071, preconditioner_seconds=0.29742331, update=0.002102203 s, solve=0.83818838 s
+nbIter = 23
+nConverged 0 0
+OWT-Krylov: 23 iterations, true_rel_residual=9.07838950e-09, linear_rel_residual=9.0783895e-09, projected_entries=0, state=pre_physics_limiters, step=8, status=converged, operator_apps=48, preconditioner_apps=46, reductions=71, spatial_seconds=0.23084715, spectral_seconds=0.068197053, preconditioner_seconds=0.2947413, update=0.002194917 s, solve=0.78237343 s
+nbIter = 23
+nConverged 0 0
+Wave action roundoff projection: entries=1982 maximum_allowed=7.348875e-17
+OWT-Krylov: 23 iterations, true_rel_residual=6.55990892e-09, linear_rel_residual=6.5599089e-09, projected_entries=1982, state=pre_physics_limiters, step=9, status=converged, operator_apps=49, preconditioner_apps=46, reductions=73, spatial_seconds=0.21971641, spectral_seconds=0.060978901, preconditioner_seconds=0.28873287, update=0.002189508 s, solve=0.81197329 s
+nbIter = 23
+nConverged 0 0
+Wave action roundoff projection: entries=790 maximum_allowed=8.441113e-17
+OWT-Krylov: 23 iterations, true_rel_residual=4.66526477e-09, linear_rel_residual=4.6652648e-09, projected_entries=790, state=pre_physics_limiters, step=10, status=converged, operator_apps=49, preconditioner_apps=46, reductions=73, spatial_seconds=0.23032065, spectral_seconds=0.068573583, preconditioner_seconds=0.2924972, update=0.002170512 s, solve=0.78133792 s
+  After solver - owned action sum: 9.56012928e+01
+nbIter = 23
+nConverged 0 0
+Wave action roundoff projection: entries=170 maximum_allowed=9.7229034e-17
+OWT-Krylov: 23 iterations, true_rel_residual=3.31755591e-09, linear_rel_residual=3.3175559e-09, projected_entries=170, state=pre_physics_limiters, step=11, status=converged, operator_apps=49, preconditioner_apps=46, reductions=73, spatial_seconds=0.22259635, spectral_seconds=0.061943047, preconditioner_seconds=0.29240796, update=0.002174329 s, solve=0.82379343 s
+nbIter = 23
+nConverged 0 0
+Timings:
+FKM       : 0.1755 +- 0.004255 sec 3.122 %
+Sources   : 0.3926 +- 0.01241 sec 6.983 %
+  SPR     : 0.03034 sec 0.5397 %
+  SIN4    : 0.07536 sec 1.341 %
+  SDS4    : 0.2027 sec 3.605 %
+  FMEANWS : 0.004884 sec 0.08688 %
+  SINLIN  : 0.007154 sec 0.1273 %
+  SBREAK  : 0.007012 sec 0.1247 %
+  SNL4    : 9.659e-05 sec 0.001718 %
+Solver    : 4.969 +- 0.01215 sec 88.38 %
+Limiter   : 0.02441 +- 0.0001922 sec 0.4341 %
+Sources Post: 0.04916 +- 0.0005256 sec 0.8746 %
+Rest      : 0.01137 sec
+Timestep  : 5.622 sec
+
+IT=   12/36 ( 33%)  t=2.0h speedup=640.4x
+Wave action roundoff projection: entries=10 maximum_allowed=0.0
+OWT-Krylov: 22 iterations, true_rel_residual=7.03998902e-09, linear_rel_residual=7.039989e-09, projected_entries=10, state=pre_physics_limiters, step=12, status=converged, operator_apps=47, preconditioner_apps=44, reductions=71, spatial_seconds=0.2190566, spectral_seconds=0.06336338, preconditioner_seconds=0.28045198, update=0.002104187 s, solve=0.74916942 s
+nbIter = 22
+nConverged 0 0
+OWT-Krylov: 22 iterations, true_rel_residual=7.55836760e-09, linear_rel_residual=7.5583676e-09, projected_entries=0, state=pre_physics_limiters, step=13, status=converged, operator_apps=46, preconditioner_apps=44, reductions=68, spatial_seconds=0.21080376, spectral_seconds=0.057931083, preconditioner_seconds=0.27623283, update=0.002296929 s, solve=0.78046878 s
+nbIter = 22
+nConverged 0 0
+OWT-Krylov: 22 iterations, true_rel_residual=2.17204493e-09, linear_rel_residual=2.1720449e-09, projected_entries=0, state=pre_physics_limiters, step=14, status=converged, operator_apps=46, preconditioner_apps=44, reductions=68, spatial_seconds=0.21940438, spectral_seconds=0.064087161, preconditioner_seconds=0.28270168, update=0.002151246 s, solve=0.74739058 s
+nbIter = 22
+nConverged 0 0
+OWT-Krylov: 21 iterations, true_rel_residual=8.42198002e-09, linear_rel_residual=8.42198e-09, projected_entries=0, state=pre_physics_limiters, step=15, status=converged, operator_apps=44, preconditioner_apps=42, reductions=66, spatial_seconds=0.20324423, spectral_seconds=0.055275608, preconditioner_seconds=0.26437571, update=0.002051137 s, solve=0.75902282 s
+nbIter = 21
+nConverged 0 0
+OWT-Krylov: 21 iterations, true_rel_residual=4.31064309e-09, linear_rel_residual=4.3106431e-09, projected_entries=0, state=pre_physics_limiters, step=16, status=converged, operator_apps=44, preconditioner_apps=42, reductions=65, spatial_seconds=0.21082775, spectral_seconds=0.063746861, preconditioner_seconds=0.27228513, update=0.002126389 s, solve=0.72081999 s
+nbIter = 21
+nConverged 0 0
+OWT-Krylov: 21 iterations, true_rel_residual=2.76745568e-09, linear_rel_residual=2.7674557e-09, projected_entries=0, state=pre_physics_limiters, step=17, status=converged, operator_apps=44, preconditioner_apps=42, reductions=65, spatial_seconds=0.19939862, spectral_seconds=0.054234742, preconditioner_seconds=0.26251959, update=0.002287021 s, solve=0.75385881 s
+nbIter = 21
+nConverged 0 0
+Timings:
+FKM       : 0.1759 +- 0.0048 sec 3.346 %
+Sources   : 0.4002 +- 0.01567 sec 7.612 %
+  SPR     : 0.03155 sec 0.6 %
+  SIN4    : 0.07585 sec 1.442 %
+  SDS4    : 0.2083 sec 3.961 %
+  FMEANWS : 0.004934 sec 0.09385 %
+  SINLIN  : 0.007169 sec 0.1364 %
+  SBREAK  : 0.007173 sec 0.1364 %
+  SNL4    : 9.746e-05 sec 0.001854 %
+Solver    : 4.597 +- 0.01391 sec 87.44 %
+Limiter   : 0.02404 +- 0.0002025 sec 0.4573 %
+Sources Post: 0.04973 +- 0.0004906 sec 0.9458 %
+Rest      : 0.01059 sec
+Timestep  : 5.258 sec
+
+IT=   18/36 ( 50%)  t=3.0h speedup=684.7x
+OWT-Krylov: 21 iterations, true_rel_residual=1.67593410e-09, linear_rel_residual=1.6759341e-09, projected_entries=0, state=pre_physics_limiters, step=18, status=converged, operator_apps=44, preconditioner_apps=42, reductions=65, spatial_seconds=0.21371118, spectral_seconds=0.062170149, preconditioner_seconds=0.26731146, update=0.002160633 s, solve=0.71587569 s
+nbIter = 21
+nConverged 0 0
+OWT-Krylov: 21 iterations, true_rel_residual=1.14741531e-09, linear_rel_residual=1.1474153e-09, projected_entries=0, state=pre_physics_limiters, step=19, status=converged, operator_apps=44, preconditioner_apps=42, reductions=65, spatial_seconds=0.201757, spectral_seconds=0.055478315, preconditioner_seconds=0.26500814, update=0.002257115 s, solve=0.74856396 s
+nbIter = 21
+nConverged 0 0
+OWT-Krylov: 21 iterations, true_rel_residual=1.12304346e-09, linear_rel_residual=1.1230435e-09, projected_entries=0, state=pre_physics_limiters, step=20, status=converged, operator_apps=44, preconditioner_apps=42, reductions=65, spatial_seconds=0.21095117, spectral_seconds=0.062643904, preconditioner_seconds=0.26901389, update=0.002269548 s, solve=0.71805135 s
+  After solver - owned action sum: 1.26412737e+02
+nbIter = 21
+nConverged 0 0
+OWT-Krylov: 19 iterations, true_rel_residual=7.24658544e-09, linear_rel_residual=7.2465854e-09, projected_entries=0, state=pre_physics_limiters, step=21, status=converged, operator_apps=40, preconditioner_apps=38, reductions=59, spatial_seconds=0.19490037, spectral_seconds=0.057286174, preconditioner_seconds=0.25063168, update=0.00223327 s, solve=0.66260047 s
+nbIter = 19
+nConverged 0 0
+OWT-Krylov: 18 iterations, true_rel_residual=6.85226494e-09, linear_rel_residual=6.8522649e-09, projected_entries=0, state=pre_physics_limiters, step=22, status=converged, operator_apps=38, preconditioner_apps=36, reductions=56, spatial_seconds=0.18388205, spectral_seconds=0.053293539, preconditioner_seconds=0.23264352, update=0.002110278 s, solve=0.61696586 s
+nbIter = 18
+nConverged 0 0
+OWT-Krylov: 17 iterations, true_rel_residual=8.01218353e-09, linear_rel_residual=8.0121835e-09, projected_entries=0, state=pre_physics_limiters, step=23, status=converged, operator_apps=36, preconditioner_apps=34, reductions=54, spatial_seconds=0.17393903, spectral_seconds=0.050771698, preconditioner_seconds=0.22103066, update=0.002088146 s, solve=0.5861944 s
+nbIter = 17
+nConverged 0 0
+Timings:
+FKM       : 0.1767 +- 0.004141 sec 3.681 %
+Sources   : 0.4078 +- 0.01693 sec 8.494 %
+  SPR     : 0.03186 sec 0.6637 %
+  SIN4    : 0.07687 sec 1.601 %
+  SDS4    : 0.2145 sec 4.469 %
+  FMEANWS : 0.004999 sec 0.1041 %
+  SINLIN  : 0.007255 sec 0.1511 %
+  SBREAK  : 0.007246 sec 0.1509 %
+  SNL4    : 9.825e-05 sec 0.002047 %
+Solver    : 4.13 +- 0.01536 sec 86.03 %
+Limiter   : 0.02468 +- 0.0003073 sec 0.5142 %
+Sources Post: 0.05133 +- 0.000422 sec 1.069 %
+Rest      : 0.01013 sec
+Timestep  : 4.8 sec
+
+IT=   24/36 ( 66%)  t=4.0h speedup=749.9x
+OWT-Krylov: 17 iterations, true_rel_residual=8.47902802e-09, linear_rel_residual=8.479028e-09, projected_entries=0, state=pre_physics_limiters, step=24, status=converged, operator_apps=36, preconditioner_apps=34, reductions=53, spatial_seconds=0.1737492, spectral_seconds=0.051454844, preconditioner_seconds=0.21876369, update=0.002215065 s, solve=0.58531867 s
+nbIter = 17
+nConverged 0 0
+OWT-Krylov: 17 iterations, true_rel_residual=6.05623673e-09, linear_rel_residual=6.0562367e-09, projected_entries=0, state=pre_physics_limiters, step=25, status=converged, operator_apps=36, preconditioner_apps=34, reductions=53, spatial_seconds=0.17102213, spectral_seconds=0.050547424, preconditioner_seconds=0.21679131, update=0.002175241 s, solve=0.58105464 s
+nbIter = 17
+nConverged 0 0
+OWT-Krylov: 17 iterations, true_rel_residual=4.31370354e-09, linear_rel_residual=4.3137035e-09, projected_entries=0, state=pre_physics_limiters, step=26, status=converged, operator_apps=36, preconditioner_apps=34, reductions=53, spatial_seconds=0.17505438, spectral_seconds=0.05073958, preconditioner_seconds=0.21859059, update=0.002314512 s, solve=0.58387074 s
+nbIter = 17
+nConverged 0 0
+OWT-Krylov: 17 iterations, true_rel_residual=2.83088659e-09, linear_rel_residual=2.8308866e-09, projected_entries=0, state=pre_physics_limiters, step=27, status=converged, operator_apps=36, preconditioner_apps=34, reductions=53, spatial_seconds=0.17528952, spectral_seconds=0.050539051, preconditioner_seconds=0.2219094, update=0.002123944 s, solve=0.58949754 s
+nbIter = 17
+nConverged 0 0
+OWT-Krylov: 17 iterations, true_rel_residual=1.49753070e-09, linear_rel_residual=1.4975307e-09, projected_entries=0, state=pre_physics_limiters, step=28, status=converged, operator_apps=36, preconditioner_apps=34, reductions=53, spatial_seconds=0.17129404, spectral_seconds=0.050259817, preconditioner_seconds=0.21490607, update=0.002096943 s, solve=0.58205648 s
+nbIter = 17
+nConverged 0 0
+OWT-Krylov: 17 iterations, true_rel_residual=7.19729610e-10, linear_rel_residual=7.1972961e-10, projected_entries=0, state=pre_physics_limiters, step=29, status=converged, operator_apps=36, preconditioner_apps=34, reductions=53, spatial_seconds=0.17156129, spectral_seconds=0.050951575, preconditioner_seconds=0.22040653, update=0.002161685 s, solve=0.5833524 s
+nbIter = 17
+nConverged 0 0
+Timings:
+FKM       : 0.1803 +- 0.004984 sec 4.221 %
+Sources   : 0.4176 +- 0.01988 sec 9.777 %
+  SPR     : 0.03228 sec 0.7558 %
+  SIN4    : 0.0775 sec 1.814 %
+  SDS4    : 0.2173 sec 5.087 %
+  FMEANWS : 0.005115 sec 0.1198 %
+  SINLIN  : 0.007355 sec 0.1722 %
+  SBREAK  : 0.007308 sec 0.1711 %
+  SNL4    : 0.0001024 sec 0.002398 %
+Solver    : 3.589 +- 0.01516 sec 84.02 %
+Limiter   : 0.02413 +- 0.0002989 sec 0.5651 %
+Sources Post: 0.05112 +- 0.0007146 sec 1.197 %
+Rest      : 0.009365 sec
+Timestep  : 4.271 sec
+
+IT=   30/36 ( 83%)  t=5.0h speedup=842.9x
+OWT-Krylov: 17 iterations, true_rel_residual=3.26488532e-10, linear_rel_residual=3.2648853e-10, projected_entries=0, state=pre_physics_limiters, step=30, status=converged, operator_apps=36, preconditioner_apps=34, reductions=53, spatial_seconds=0.17298014, spectral_seconds=0.050631744, preconditioner_seconds=0.21890049, update=0.002109557 s, solve=0.58139915 s
+  After solver - owned action sum: 1.17801460e+02
+nbIter = 17
+nConverged 0 0
+OWT-Krylov: 17 iterations, true_rel_residual=1.28142723e-10, linear_rel_residual=1.2814272e-10, projected_entries=0, state=pre_physics_limiters, step=31, status=converged, operator_apps=36, preconditioner_apps=34, reductions=53, spatial_seconds=0.17964736, spectral_seconds=0.051788529, preconditioner_seconds=0.21712018, update=0.002178437 s, solve=0.58932547 s
+nbIter = 17
+nConverged 0 0
+OWT-Krylov: 17 iterations, true_rel_residual=6.60072722e-11, linear_rel_residual=6.6007272e-11, projected_entries=0, state=pre_physics_limiters, step=32, status=converged, operator_apps=36, preconditioner_apps=34, reductions=53, spatial_seconds=0.17384269, spectral_seconds=0.050579755, preconditioner_seconds=0.21737387, update=0.002131929 s, solve=0.58199973 s
+nbIter = 17
+nConverged 0 0
+OWT-Krylov: 17 iterations, true_rel_residual=5.73201667e-11, linear_rel_residual=5.7320167e-11, projected_entries=0, state=pre_physics_limiters, step=33, status=converged, operator_apps=36, preconditioner_apps=34, reductions=53, spatial_seconds=0.17440819, spectral_seconds=0.050651513, preconditioner_seconds=0.21849629, update=0.002069091 s, solve=0.58745367 s
+nbIter = 17
+nConverged 0 0
+OWT-Krylov: 17 iterations, true_rel_residual=4.70089449e-11, linear_rel_residual=4.7008945e-11, projected_entries=0, state=pre_physics_limiters, step=34, status=converged, operator_apps=36, preconditioner_apps=34, reductions=53, spatial_seconds=0.17243154, spectral_seconds=0.051694007, preconditioner_seconds=0.2175086, update=0.002092254 s, solve=0.5829974 s
+nbIter = 17
+nConverged 0 0
+OWT-Krylov: 17 iterations, true_rel_residual=2.96454278e-11, linear_rel_residual=2.9645428e-11, projected_entries=0, state=pre_physics_limiters, step=35, status=converged, operator_apps=36, preconditioner_apps=34, reductions=53, spatial_seconds=0.17222077, spectral_seconds=0.050199632, preconditioner_seconds=0.21863289, update=0.002175731 s, solve=0.5815674 s
+nbIter = 17
+nConverged 0 0
+Timings:
+FKM       : 0.1783 +- 0.004655 sec 4.187 %
+Sources   : 0.4108 +- 0.0157 sec 9.644 %
+  SPR     : 0.03215 sec 0.7549 %
+  SIN4    : 0.07781 sec 1.827 %
+  SDS4    : 0.2165 sec 5.084 %
+  FMEANWS : 0.005082 sec 0.1193 %
+  SINLIN  : 0.007261 sec 0.1705 %
+  SBREAK  : 0.007339 sec 0.1723 %
+  SNL4    : 0.0001011 sec 0.002373 %
+Solver    : 3.585 +- 0.01436 sec 84.18 %
+Limiter   : 0.02453 +- 0.0001928 sec 0.5759 %
+Sources Post: 0.05084 +- 0.0009976 sec 1.194 %
+Rest      : 0.009562 sec
+Timestep  : 4.259 sec
+
+Integration wall seconds: 29.592560659
+
+Simulation complete.
+wwx reached the end of a computation loop at 20:10:39
+Initialization time : 10.52 s
+Elapsed time        : 40.14 s
+Simulated time      : 21600.00 s

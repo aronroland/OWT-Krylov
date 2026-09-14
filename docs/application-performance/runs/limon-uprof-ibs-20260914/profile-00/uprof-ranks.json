@@ -1,0 +1,26 @@
+[
+  {
+    "rank": 0,
+    "process": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x (PID:1466899)",
+    "metric": "IBS_ALL_OPS",
+    "reported_value": "17.49%"
+  },
+  {
+    "rank": 1,
+    "process": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x (PID:1466902)",
+    "metric": "IBS_ALL_OPS",
+    "reported_value": "27.51%"
+  },
+  {
+    "rank": 2,
+    "process": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x (PID:1466900)",
+    "metric": "IBS_ALL_OPS",
+    "reported_value": "28.49%"
+  },
+  {
+    "rank": 3,
+    "process": "/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-uprof-hotspots-20260914/bin/ww-x (PID:1466901)",
+    "metric": "IBS_ALL_OPS",
+    "reported_value": "26.51%"
+  }
+]

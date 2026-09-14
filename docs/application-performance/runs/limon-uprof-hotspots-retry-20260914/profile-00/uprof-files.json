@@ -1,0 +1,118 @@
+{
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/.config/config_uma_agent_1452411.txt": {
+    "bytes": 866,
+    "sha256": "91f8746da11034a65d06b6398dfc46f859a4cd5a336319347c7a5761434aaa26"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/.config/config_uma_agent_1452412.txt": {
+    "bytes": 866,
+    "sha256": "fbed095b1ff440711bc275cde1c7dbf4032cfc1b1006b93921beb76d7111fe4f"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/.config/config_uma_agent_1452413.txt": {
+    "bytes": 866,
+    "sha256": "db321ca234085d2200cad772aad665b72ccac60e741f5fd8970a7075bfc5db0a"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/.config/config_uma_agent_1452414.txt": {
+    "bytes": 866,
+    "sha256": "75188174363920e8a928e292a58bc7f1fde21200c1a68fbdd292f618eb1d2df4"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/.error/AMDTUmtError_t14s_ww-x_1452439.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/.error/AMDTUmtError_t14s_ww-x_1452440.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/.error/AMDTUmtError_t14s_ww-x_1452441.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/.error/AMDTUmtError_t14s_ww-x_1452442.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/.log/AMDTUmtAgent_t14s_ww-x_1452439.txt": {
+    "bytes": 4441,
+    "sha256": "d3e77df8e29c050bbc2eb53e8788fe3ee0ee829e259aa845ac59b32cbf6e53d2"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/.log/AMDTUmtAgent_t14s_ww-x_1452440.txt": {
+    "bytes": 4441,
+    "sha256": "1c40f69da85c172a9ca0177758af6423ece65458aece36ba48c4a6c76f420cd6"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/.log/AMDTUmtAgent_t14s_ww-x_1452441.txt": {
+    "bytes": 4441,
+    "sha256": "2f8285f3c07d78e103a5fa05b9fe95c02f1964ad3e86816f9518d08e0fc14e03"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/.log/AMDTUmtAgent_t14s_ww-x_1452442.txt": {
+    "bytes": 4441,
+    "sha256": "2d47986b1e1683b98c5e7ecf905ebd8080d4aa10f6e9b99b61d3e0f77182eaaf"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/binaries/bin.index": {
+    "bytes": 2119,
+    "sha256": "426c4c61bab4d69771966fb77c5887aec5362bb60d5b6c39efc524bba93ae435"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/callstack.db": {
+    "bytes": 1585152,
+    "sha256": "5d0b0b78cca07c1fa5fe0b369536cceec5985bc3f034914d3053f0d37f2d6e41"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/cpu/profile_t14s_1452439.ums": {
+    "bytes": 668208,
+    "sha256": "75fbf201d5cb4cb5459de9a32ec235b081a1bfa76856f6297b3296b14c88faee"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/cpu/profile_t14s_1452440.ums": {
+    "bytes": 604744,
+    "sha256": "80839489dfc651fb23ea5a3b12fdf2da3219c06b21d20387fab7cf1bb771d871"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/cpu/profile_t14s_1452441.ums": {
+    "bytes": 665608,
+    "sha256": "ac1b066b7c54712a7489424ddba3dbccf55402998cc884627591d53ba6eb66f5"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/cpu/profile_t14s_1452442.ums": {
+    "bytes": 665248,
+    "sha256": "e7ac16d06744ebfcf309d442d01bf18ffb624aab2455e469fcc889f9b985a0d3"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/cpu.db": {
+    "bytes": 11808768,
+    "sha256": "f00701c8e1fc97960d6c76b08c6dca25c080659bcb25da6d25ab4142ec8d87df"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/metadata/metadata_t14s_1452411.caperf": {
+    "bytes": 14040,
+    "sha256": "51c8eaa5de796665b24b9845a7bc3946b7ff0bf7b0a5f0cdab165d9363201899"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/metadata/metadata_t14s_1452412.caperf": {
+    "bytes": 14040,
+    "sha256": "42d249ea5f657d61c51a55ee4a3cb1429da4c2d4997a82acbced2b7c415aab5a"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/metadata/metadata_t14s_1452413.caperf": {
+    "bytes": 14040,
+    "sha256": "e3d5dedc95d7e40c90309ba664a86a6ad452735146ae5b0ccee40f220f781c7c"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/metadata/metadata_t14s_1452414.caperf": {
+    "bytes": 14040,
+    "sha256": "09d17487af703c2d570b976ad0865ceecc8847fa7f41d18faad31d24f8912327"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/session.uprof": {
+    "bytes": 15550,
+    "sha256": "f203a49c207ebf2b5ef07f664f1f3da82437a4c927d98a80c70dd12552506987"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/sessions/session-t14s-1452411.uprof": {
+    "bytes": 12697,
+    "sha256": "3223f523e86ff96ddd9c933985cb7d9e827e8a77db51f995bd5bf3c275ed3c00"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/sessions/session-t14s-1452412.uprof": {
+    "bytes": 12697,
+    "sha256": "2b99d114b73e8aa9b31a0d7835675b822bfc6cecc5ad4e6fa3bc14cbee9e04fa"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/sessions/session-t14s-1452413.uprof": {
+    "bytes": 12699,
+    "sha256": "138ba9c6835e28bfdfac8fcb21bf648e5ef00aa3c31c6b805c35f699fd05f296"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/sessions/session-t14s-1452414.uprof": {
+    "bytes": 12699,
+    "sha256": "42957b5a6fbbbbfbd7ed74031157e092944dc4bc02db8b090aad15382363a7c6"
+  },
+  "uprof/AMDuProf-ww-x-Hotspots_MPI/sources/src.index": {
+    "bytes": 6506,
+    "sha256": "f8164977d37ab30e285b783d477ccc86d33f5caa336cf5312692586d8627b11f"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "run_id": "limon-profile-gnu-20260913",
+  "specwave": "/home/aron/git/SpecWave",
+  "baseline": null,
+  "candidate": null,
+  "ranks": 4,
+  "repetitions": 1,
+  "steps": null,
+  "detail_timings": true,
+  "build_only": false
+}

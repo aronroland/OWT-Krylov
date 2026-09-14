@@ -69,6 +69,10 @@ The ordinary (not opt-in) foundation tests cover safe norms, nonfinite solver
 inputs, borrowed solution/candidate lifetimes, repeated split-SSOR pipelined
 solves at block sizes 5 and 1296, and timing with copy elision disabled. MPI
 tests include unequal owned sizes and nonfinite data on just one rank.
+The serial `pipelined_view` case also compares one complete BiCGSTAB iteration
+bitwise against the original two-AXPY solution update, for float/double and
+owned lengths around 256-component chunk boundaries, including guarded views
+and untouched ghosts.
 
 Run the documented serial and matching-MPI builds with separate preserved
 evidence for each patch stage:

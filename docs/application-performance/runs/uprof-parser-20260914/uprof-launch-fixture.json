@@ -1,0 +1,16 @@
+[
+  "/opt/AMD uProf/bin/AMDuProfCLI-bin",
+  "collect",
+  "--config",
+  "hotspots",
+  "--mpi",
+  "--call-graph",
+  "dwarf:4096",
+  "--working-dir",
+  "/home/aron/git/OWT-Krylov/docs/application-performance/runs/uprof-parser-20260914",
+  "--log-path",
+  "/home/aron/git/OWT-Krylov/docs/application-performance/runs/uprof-parser-20260914/uprof-logs",
+  "--output-dir",
+  "/home/aron/git/OWT-Krylov/docs/application-performance/runs/uprof-parser-20260914/uprof",
+  "/repository/build with spaces/ww-x"
+]

@@ -1,0 +1,155 @@
+diff --git a/TRITON-C/libwwx/RDschemes_implicit_V2.hpp b/TRITON-C/libwwx/RDschemes_implicit_V2.hpp
+index da22b812..c89c56a4 100644
+--- a/TRITON-C/libwwx/RDschemes_implicit_V2.hpp
++++ b/TRITON-C/libwwx/RDschemes_implicit_V2.hpp
+@@ -1664,6 +1664,11 @@ struct NScheme_implicit_V2 {
+                           << ", linear_rel_residual=" << telemetry.linear_relative_residual
+                           << ", projected_entries=" << telemetry.projected_entries
+                           << ", state=pre_physics_limiters"
++                          << ", step=" << IT
++                          << ", status=" << owt::krylov::to_string(result.status)
++                          << ", operator_apps=" << result.operator_applications
++                          << ", preconditioner_apps=" << result.preconditioner_applications
++                          << ", reductions=" << result.global_reductions
+                           << ", update=" << telemetry.last_numeric_update_seconds
+                           << " s, solve=" << telemetry.last_solve_seconds << " s\n";
+             }
+diff --git a/TRITON-C/regression/unsteady/limon/wwx_bench.nml b/TRITON-C/regression/unsteady/limon/wwx_bench.nml
+index 6240aecb..6aad8f32 100644
+--- a/TRITON-C/regression/unsteady/limon/wwx_bench.nml
++++ b/TRITON-C/regression/unsteady/limon/wwx_bench.nml
+@@ -34,7 +34,8 @@
+   breaking_limiter = T
+   solver_type = 12
+   solver_rtol = 1e-8
+-  stopping_criteria = 1
++  convergence_criteria = 1
++  solver_check_interval = 1
+ /
+ &NML_SOURCES
+   LST1 = F
+diff --git a/TRITON-C/ww-x/main.cpp b/TRITON-C/ww-x/main.cpp
+index 2deb86fd..93bbcc93 100644
+--- a/TRITON-C/ww-x/main.cpp
++++ b/TRITON-C/ww-x/main.cpp
+@@ -20,6 +20,7 @@
+ #include <iostream>
+ #include <chrono>
+ #include <filesystem>
++#include <BinaryWriter.hpp>
+ 
+ // C++23 float16_t
+ #if __has_include(<stdfloat>)
+@@ -97,15 +98,19 @@ steady_clock::time_point endInitTime;
+ 
+ 
+ template<bool use_jacobi, typename T=double>
+-void calc_implicit_impl(DomainDecomposition& dd, const Settings& conf, Mesh<T>& mesh, Array1D<NodeID,BC>& IOBP) {
++void calc_implicit_impl(DomainDecomposition& dd, const Settings& conf, Mesh<T>& mesh,
++                        Array1D<NodeID,BC>& IOBP, const std::string& final_state_prefix) {
+ #ifdef DEBUG_INITTRACE
+     dbg << "Start of calc_implicit\n" << std::flush;
+ #endif
+     // write nodeconvergenz.bin file which contains number of iteration of every single node
+     constexpr bool write_nodeconvergenz = false;
+     // Enable to get detailed timing about sources advection limiter etc
+-    //DAH constexpr bool detail_timings = false;
++#ifdef SPECWAVE_DETAIL_TIMINGS
++    constexpr bool detail_timings = true;
++#else
+     constexpr bool detail_timings = false;
++#endif
+     //
+     constexpr bool LADVTEST = false;
+ 
+@@ -320,6 +325,7 @@ void calc_implicit_impl(DomainDecomposition& dd, const Settings& conf, Mesh<T>&
+         std::cout << "    • Solver:     solver_type=" << conf.num.solver_type << "\n\n";
+     }
+ 
++    const auto integration_started = steady_clock::now();
+     for(int IT=0; IT < conf.main.MNT; ++IT) {
+         double curTime = conf.main.DT4A*IT;
+         if(IT%conf.history.ISKIPOUT == 0 && dd.myrank == 0) {
+@@ -755,9 +761,30 @@ void calc_implicit_impl(DomainDecomposition& dd, const Settings& conf, Mesh<T>&
+         }
+     }
+ 
+-    if(dd.myrank == 0) {
+-        std::cout << "\nSimulation complete.\n";
++    if(!final_state_prefix.empty()) {
++        const double local_seconds = duration<double>(steady_clock::now() - integration_started).count();
++        double integration_seconds = 0;
++        MPI_Reduce(&local_seconds, &integration_seconds, 1, MPI_DOUBLE, MPI_MAX, 0, dd.comm);
++        if(dd.myrank == 0) {
++            std::cout << "Integration wall seconds: " << std::setprecision(17)
++                      << integration_seconds << '\n';
++        }
++        // Native-endian snapshot: magic, five uint64 fields, owned global IDs,
++        // then contiguous [vertex][frequency][direction] scalar values.
++        BinaryWriter output(final_state_prefix + "-rank" + std::to_string(dd.myrank) + ".bin");
++        output.stream().write("SWSTATE1", 8);
++        for(const std::uint64_t field : {std::uint64_t(sizeof(T)), std::uint64_t(dd.np),
++                std::uint64_t(conf.spec.NS), std::uint64_t(conf.spec.ND), std::uint64_t(dd.np_global)}) {
++            output.write(field);
++        }
++        for(NodeID ip{0}; ip < dd.np; ++ip) output.write(std::uint64_t(dd.iplg(ip).value));
++        const auto bytes = std::size_t(dd.np) * conf.spec.NS * conf.spec.ND * sizeof(T);
++        output.stream().write(reinterpret_cast<const char*>(wave_spec2.WAD.data()),
++                              static_cast<std::streamsize>(bytes));
++        output.stream().flush();
++        if(!output.stream()) throw std::runtime_error("could not write final wave state");
+     }
++    if(dd.myrank == 0) std::cout << "\nSimulation complete.\n";
+ }
+ 
+ 
+@@ -857,17 +884,19 @@ void calc_explicit(const DomainDecomposition& dd, const Settings& conf, const Me
+ // use_jacobi=true needed for: Jacobi (0), Chebyshev (2), Anderson acceleration
+ // use_jacobi=false for: Gauss-Seidel (1), PETSc (4,6), BiCGSTAB (5,7)
+ template<typename T=double>
+-void calc_implicit(DomainDecomposition& dd, const Settings& conf, Mesh<T>& mesh, Array1D<NodeID,BC>& IOBP) {
++void calc_implicit(DomainDecomposition& dd, const Settings& conf, Mesh<T>& mesh,
++                   Array1D<NodeID,BC>& IOBP, const std::string& final_state_prefix) {
+     bool need_jacobi = (conf.num.solver_type == 0 || conf.num.solver_type == 2 || conf.num.anderson_acceleration);
+     if(need_jacobi) {
+-        calc_implicit_impl<true, T>(dd, conf, mesh, IOBP);
++        calc_implicit_impl<true, T>(dd, conf, mesh, IOBP, final_state_prefix);
+     } else {
+-        calc_implicit_impl<false, T>(dd, conf, mesh, IOBP);
++        calc_implicit_impl<false, T>(dd, conf, mesh, IOBP, final_state_prefix);
+     }
+ }
+ 
+ struct CLIArgs {
+     std::string input_file = "wwx.nml";
++    std::string final_state_prefix;
+     int solver_type = -1;
+     bool help = false;
+ };
+@@ -884,6 +913,9 @@ static CLIArgs parse_args(int argc, char* argv[]) {
+             else { std::cerr << "Error: " << a << " requires a filename\n"; std::exit(1); }
+         } else if(a.rfind("--input=", 0) == 0) {
+             args.input_file = a.substr(8);
++        } else if(a == "--final-state") {
++            if(i + 1 < argc) { args.final_state_prefix = argv[++i]; }
++            else { std::cerr << "Error: " << a << " requires a filename prefix\n"; std::exit(1); }
+         } else if(a == "--solver") {
+             if(i + 1 < argc) { args.solver_type = std::stoi(argv[++i]); }
+             else { std::cerr << "Error: " << a << " requires an integer\n"; std::exit(1); }
+@@ -912,6 +944,7 @@ static void print_usage(const char* prog) {
+               << "Options:\n"
+               << "  -i, --input FILE   Namelist input file (default: wwx.nml)\n"
+               << "      --solver ID    Override solver_type without modifying the NML\n"
++              << "      --final-state PREFIX  Write final owned spectra, one binary file per rank\n"
+               << "  -h, --help         Show this help message\n";
+ }
+ 
+@@ -1000,7 +1033,7 @@ int main(int argc, char* argv[]) {
+ 
+ 
+         //calc_explicit(dd, conf, mesh_local);
+-        calc_implicit<T>(dd, conf, mesh_local, IOBP);
++        calc_implicit<T>(dd, conf, mesh_local, IOBP, cli.final_state_prefix);
+ 
+         // WAVEWATCH III reached the end of a computation loop at 05:23:04
+         // Initialization time :     31.45 s

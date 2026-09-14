@@ -1,0 +1,229 @@
+! Protocol NML file
+! Static values not in NML:
+!  G9     = 9.806
+!  KDMAX  = 200
+!  REARTH = 6366198
+!  DMIN   = 0.05
+!  NU_AIR = 1.4e-05
+!  KAPPA  = 0.4
+!  TABU_STRESS::UMAX    = 50
+!  TABU_STRESS::TAUWMAX = 2.2361
+!  TABU_FW::SIZEFWTABLE = 300
+!  TABU_FW::ABMIN       = -1
+!  TABU_FW::ABMAX       = 8
+!  TABU_TAUHF::JTOT     = 250
+!  TABU_TAUHF::USTARM   = 5
+
+! Timecontrol
+&NML_MAIN
+  LSPHE =      F ! Use spherical grid
+  POLE_LON =      0 ! Geographic lon of rotated North Pole (deg, LSPHE only)
+  POLE_LAT =     90 ! Geographic lat of rotated North Pole (deg, 90=no rotation)
+  DT4A  =    600 ! Timestep
+  MNT   =     36 ! Number of Timesteps
+  REFREACTION = T ! use refraction
+  FREQ_SHIFT  = F ! use frequency shifting
+  BOUNDARY    = F ! use boundary conditions. Read bnd.dat specbnd.bin
+  BOUNDARYSTEADY = F ! use only the first timestep from specbnd.bin
+  LCURRENT = F ! read current.bin
+  LETA = F ! read eta.bin (water level)
+  CURRENTSTEADY = F ! use constant current field (read only first timestep from current.bin)
+  LSTEADY_CHECK = F ! Enable steady-state convergence check
+  steady_rtol = 0.0001 ! Relative tolerance for steady-state convergence
+  steady_pmin =      0 ! Percent of nodes allowed unconverged (0=all must converge)
+  steady_check_interval =     10 ! Check convergence every N timesteps
+/
+! Numerical settings
+&NML_NUM
+  DMIN =   0.05 ! Minimum water depth (m). Nodes with ZP < DMIN are treated as dry.
+  EMU_WW3 =      T ! emulate WW3 behaviour. First timestep is set to 1 sec and WAD/SPEC is set to 0 after the solver.
+  skip_converged = F ! Solver: don't calculate allready converged nodes.
+  cache_ASPAR_DIAG = F ! Don't calculate FKM and ASPAR_diag every timestep
+  breaking_limiter = T ! Enable breaking limiter
+  action_limiter   = T ! Enable action limiter
+  action_limiter_type = 0 ! 0=Komen, 1=Jansen, 2=max(Komen,Jansen)
+  freq_scheme_order = 1 ! 1=upwind only, 2=upwind + TVD correction
+  freq_limiter_type = 0 ! 0=minmod (default), 1=van Leer, 2=superbee
+  dir_scheme_order = 1 ! 1=upwind only, 2=upwind + TVD correction
+  dir_limiter_type = 0 ! 0=minmod (default), 1=van Leer, 2=superbee
+  spatial_scheme_order = 1 ! 1=N-scheme only, 2=N-scheme + LDA deferred correction
+  exact_dispersion = F ! Use exact Newton-Raphson dispersion (default: Beji 2003 approx)
+  source_integration =      0 ! 0=implicit, 1=fractional step
+! Solver settings
+  solver_type =     22 ! 0=Jacobi, 1=GS, 2=Chebyshev, 5=BiCGSTAB-SSOR, 7=GMRES, 14=IDR(s), 17-20=Multigrid, 22=OWT-Krylov
+  chebyshev_levels =      8 ! Chebyshev-SRJ levels (4, 8, or 16)
+  sor_omega =      1 ! SOR relaxation parameter
+  idrs_s =      1 ! IDR(s) shadow space dimension
+  solver_rtol =  1e-08 ! Solver relative tolerance
+  solver_maxiter =   1000 ! Solver max iterations
+  solver_check_interval =      1 ! Solver convergence check interval
+  convergence_pmin =      3 ! Allow up to this % of nodes not converged
+  convergence_criteria =      1 ! 1=Engineering (relSAD), 2=Math (||r||/||b||)
+! Anderson acceleration
+  anderson_acceleration = F ! Enable Anderson acceleration
+  anderson_depth =      3 ! Anderson history depth
+  anderson_period =      3 ! Apply Anderson every p iterations
+  anderson_beta =      1 ! Anderson mixing parameter
+! PETSc settings
+  petsc_ksp =      0 ! 0=GMRES, 1=BiCGSTAB, 2=CG, 3=Richardson, 4=PipelinedBiCGSTAB
+  petsc_pc =      2 ! 0=None, 1=Jacobi, 2=BlockJacobi, 3=ASM, 4=SOR
+! Multigrid settings
+  mg_levels =      0 ! Number of multigrid levels (0=auto)
+  mg_nu1 =      2 ! Pre-smoothing iterations
+  mg_nu2 =      2 ! Post-smoothing iterations
+  mg_smoother =      0 ! 0=Jacobi, 1=Red-Black GS
+  mg_coarsen_spectra = T ! Coarsen spectral dimensions on coarse levels
+  mg_maxiter =     20 ! Multigrid max cycles
+! Performance and diagnostics
+  use_fast_math = F ! Use fast math approximations
+  use_prefetch = T ! Enable memory prefetching hints
+  print_memory_usage = F ! Print memory usage breakdown
+  print_boundary_leakage = F ! Print boundary energy leakage diagnostic
+/
+!
+&NML_HISTORY
+  ISKIPOUT =      6 ! 
+  outstyle =  "XFN" ! allowed choices: NO, XFN, 2DM, more than one choice possible.
+  historypoints = F ! read historypoints file and write a file for every point
+/
+!
+&NML_SPECTRA
+  ND     =     36 ! Number of directional increments
+  NS     =     36 ! Number of spectral bins
+  XFR    =    1.1 ! Frequency multiplication factor (used when LOPTSIG=T)
+  FRLOW  =   0.04 ! lowest frequency
+  FRHIGH =    0.5 ! highest frequency (used when LOPTSIG=F)
+  LOPTSIG =      T ! T=use XFR, F=compute XFR from FRLOW/FRHIGH
+  MINDIR =      0 ! 
+  LTAIL  =      T ! Add f^-5 tail contribution to Hs
+/
+! 
+&NML_WIND
+  LWINDSTEADY =      T ! When LWINDSTEADY = T WIND10 and usdir are used. Otherwiese windfile is read.
+  WIND10      =     20 ! 
+  WINDDIR     =    270 ! Nautical convention. Direction where the wind comes from. North = 0
+  windfile    = wind.bin ! wind.bin Assume wind DT is 1h
+/
+! 
+&NML_SOURCES
+  LST1 =     F ! Enable ST1 (SIN_EXP, SDS_CYCLE3_NEW, sinlin, snl4)
+  LST4 =     T ! Enable ST4 (sin4, sds4, sinlin, snl4)
+  LSBREAKING =     T ! Enable depth-induced breaking (Battjes & Janssen)
+  IDISSIP =     1 ! Dissipation method: 1=B&J implicit, 2=explicit, ...
+  LTRIADS =     T ! Enable triads/nonlinear interactions (SNL4)
+  LQUAD =     F ! Enable quadruplet interactions (SNL4)
+  LFRICTION =     F ! Enable bottom friction (JONSWAP)
+  FRICC = 0.067 ! Friction coefficient
+  BRCR =  0.73 ! Breaking criterion gamma (Battjes & Janssen)
+  ALPHA_BJ =     1 ! Breaking dissipation coefficient alpha
+! SIN_LIN
+  clin  =   80 !
+  fspm =     1 ! Factor for fPM in filter. Alternative name RFPM?
+  fshf =   0.5 ! Factor for fh in filter. Alternative name RFHF?
+/
+!
+&NML_ST1
+  FXPM      =      4 ! 
+  FXFM      =    2.5 ! Constant for mean frequency in cut-off
+/
+!
+&NML_ST4
+  WNMEANPTAIL =   -0.5 ! Power of tail for WNMEAN calculation (but its not used for WNMEAN but for FMEANWS)
+  FXPM3      =      4 ! 
+  FXFM3      =    2.5 ! Constant for mean frequency in cut-off
+  FXFMAGE    =      0 ! 
+! SIN4
+  BETAMAX    =   1.43 ! Wind-wave coupling coefficient
+  Z0RAT      =   0.04 ! ratio of roughness for mean and oscillatory flows
+  SWELLF     =   0.66 ! 
+  SWELLF2    = -0.018 ! 
+  SWELLF3    =  0.022 ! 
+  SWELLF4    = 150000 ! 
+  SWELLF5    =    1.2 ! 
+  SWELLF6    =      0 ! unused
+  SWELLF7    = 360000 ! 
+  SINTHP     =      2 ! Power in cosine of wind input. Current implementation only supports SINTHP=2 for performance reasons
+  ZALP       =  0.006 ! 
+  TAUWSHELTER =    0.3 ! Influence of wave sheltering on the wave induced stress
+  CAPCHA     =      1 ! unused
+  UCAP       =     30 ! unused
+  SIGMAUCAP  =     10 ! unused
+  CHA0       = 0.0095 ! unused
+  CHAMIN     = 0.0001 ! unused
+  SWELLFPAR  =      1 ! unused
+  SINBR      =      0 ! unused
+  SINTABLE   =      1 ! unused
+  SINTAIL1   =      0 ! unused
+  SINTAIL2   =      0 ! unused
+  VISCSTRESS =      0 ! unused
+! SDS4
+  SDSBR      = 0.0009 ! Threshold in saturation spectrum
+  DTH        =     80 ! Maximum angular sector for saturation
+  COS        =      2 ! Power of cosine in saturation integral
+  SDSC2      = -2.2e-05 ! for Romero
+  SDSC5      =      0 ! wave turbulence interaction?
+  SDSC6      =    0.3 ! 
+  SDSP       =      2 ! Power of B(k)
+  SDSCUM     = -0.40344 ! Cummulative breaking effect. Set to 0 to disable
+  NUW        =      0 ! DVISC SDSC2
+  BRF1       =    0.5 ! 
+  SDSBCHOICE =      1 ! unused
+  SDSSTRAIN  =      0 ! unused
+  SDSSTRAINA =     15 ! unused
+  SDSSTRAIN2 =      0 ! unused
+  SDSC4      =      1 ! unused
+  SDSFACMTF  =    400 ! unused
+  SDSNMTF    =    1.5 ! unused
+  SDSCUMP    =      2 ! unused
+  SDSBT      = 0.0011 ! unused
+  SDSISO     =      2 ! unused
+  SDSBCK     =      0 ! unused
+  SDSABK     =    1.5 ! unused
+! TABU_STRESS
+  ITAUMAX    =    200 ! Size of table TAUT
+  JUMAX      =    200 !
+  Z0MAX      =      0 ! Maximum value of air-side roughness
+  ZWND       =     10 ! Height at which the wind is defined
+! TABU_TAUHF
+  IALPHA     =    200 ! Size of table TAUHFT and TAUHFT2
+  IUSTAR     =    100 ! If TAUWSHELTER > 0 the 3D Table is used.
+  ILEVTAIL   =     50 ! 
+! used by TABU_STRESS and TABU_TAUHF
+  ALPHA0     = 0.0095 ! Minimum value of charnock parameter
+/
+!
+&NML_SNL3
+  TRIA_PROP_FACTOR =        1 ! Proportionality coefficient
+  TRI_RADIUS =    1e+07 ! Frequency radius
+  TRI_BIPHASE =     0.63 ! Biphase coefficient
+  TRI_URSELL_MIN =      0.1 ! Minimum Ursell number threshold
+  TRI_CCA_DINT =       60 ! CCA directional width (deg), -1=full, 0=off
+  TRI_ITRF =        2 ! Transfer function: 1=Eldeberky, 2=Madsen-Sorensen
+  TRI_THIRD_HARM =        T ! Enable 3rd harmonic interactions
+/
+!
+&NML_SNL4
+  LAMBDANL4 =     0.25 ! 
+  NLPROP    =  2.5e+07 ! 
+  C1        = 2703.787 ! 
+  CS1       =      5.5 ! 
+  CS2       =    0.833 ! 
+  CS3       =    -1.25 ! 
+/
+!
+&NML_DomainDecomp
+  PARMETIS           =      F ! Use parmetis for domain decomposion
+  REPART             =      T ! Use repart for domain decomposion
+  HILBERT            =      F ! Use Hilbert curve for domain decomposion (better cache locality)
+  disabledNodeWeight =      1 ! repart only: Node weight for boundary and ZP < DMIN nodes. Use 1.0 to disable this feature.
+  writeDomainDecomposedMesh =      F ! Write Domain decomposed mesh to file with thread rank as Z value
+  printStatistics    =      T ! Print statistics. nodes per thread etc.
+  hilbert_local_reorder =      F ! (deprecated) Reorder local nodes using Hilbert curve
+  local_ordering     =      0 ! 0=none, 1=hilbert, 2=rcm, 3=nested_dissection
+/
+!
+&NML_REPARTITION
+  enabled            =      F ! Enable dynamic repartitioning
+  use_parmetis       =      T ! Use ParMETIS (T) or geometric (F)
+  efficiency_threshold =     80 ! Repartition when efficiency < this (%)
+/

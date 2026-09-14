@@ -1,0 +1,391 @@
+diff --git a/.gitignore b/.gitignore
+index b6be8c6..6daf71b 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -5,3 +5,13 @@
+ /CMakeFiles/
+ /Testing/
+ compile_commands.json
++
++# LaTeX build artifacts (docs/MANUAL.tex is the source; docs/MANUAL.pdf is committed)
++docs/.texbuild/
++docs/*.aux
++docs/*.log
++docs/*.out
++docs/*.toc
++docs/*.fls
++docs/*.fdb_latexmk
++docs/*.synctex.gz
+diff --git a/README.md b/README.md
+index 80d4f5f..8e875a4 100644
+--- a/README.md
++++ b/README.md
+@@ -65,7 +65,14 @@ from integration and consistency work still required.
+   `solver_type=22` AsyncPipeStable selector; IDs 23--30 are OWT extensions.
+ 
+ The detailed mapping is in
+-[SpecWave port matrix](docs/SPECWAVE_PORT_MATRIX.md).
++[SpecWave port matrix](docs/SPECWAVE_PORT_MATRIX.md). For the complete API
++reference and usage guide, see the manual
++([PDF](docs/MANUAL.pdf), [LaTeX source](docs/MANUAL.tex)):
++
++```bash
++pdflatex -output-directory=docs docs/MANUAL.tex   # run twice to settle
++pdflatex -output-directory=docs docs/MANUAL.tex   # the table of contents
++```
+ 
+ ## Build and test
+ 
+diff --git a/benchmarks/specwave_limon.sh b/benchmarks/specwave_limon.sh
+old mode 100755
+new mode 100644
+index 87dae15..009e915
+--- a/benchmarks/specwave_limon.sh
++++ b/benchmarks/specwave_limon.sh
+@@ -1,76 +1,4 @@
+ #!/usr/bin/env bash
+-set -u
+-
+-# Non-mutating SpecWave Limon comparison.  A private copy of the case is used
+-# for every solver and solver_type is overridden on the command line, so the
+-# source NML and reference/observational files are never edited.
+-
+-OWT_REPOSITORY=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+-SPECWAVE_ROOT=${SPECWAVE_ROOT:-"$(cd "$OWT_REPOSITORY/../SpecWave" && pwd)"}
+-WWX=${WWX:-"$SPECWAVE_ROOT/TRITON-C/ww-x/ww-x"}
+-MPIEXEC=${MPIEXEC:-mpirun}
+-MPI_RANKS=${MPI_RANKS:-4}
+-SOLVERS=${SOLVERS:-"12:owt-baseline-native,22:owt-krylov,6:petsc"}
+-LIMON_CASE="$SPECWAVE_ROOT/TRITON-C/regression/unsteady/limon"
+-
+-if [[ ! -x "$WWX" ]]; then
+-    echo "WWX is not executable: $WWX" >&2
+-    exit 2
+-fi
+-if [[ ! -f "$LIMON_CASE/system.dat" || ! -f "$LIMON_CASE/wwx_bench.nml" ]]; then
+-    echo "Limon case is incomplete: $LIMON_CASE" >&2
+-    exit 2
+-fi
+-
+-RUN_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/owt-limon.XXXXXX")
+-trap 'rm -rf -- "$RUN_ROOT"' EXIT
+-
+-echo "# OWT-Krylov SpecWave Limon comparison"
+-echo "date_utc,$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+-echo "host,$(hostname)"
+-echo "specwave_revision,$(git -C "$SPECWAVE_ROOT" rev-parse HEAD)"
+-echo "owt_revision,$(git -C "$OWT_REPOSITORY" rev-parse HEAD)"
+-echo "wwx,$WWX"
+-echo "mpi_launcher,$($MPIEXEC --version 2>&1 | head -n 1)"
+-echo "mpi_ranks,$MPI_RANKS"
+-echo "spectral_block_size,1296"
+-echo "input,wwx_bench.nml"
+-echo "solver_id,solver,exit_code,elapsed_seconds,iterations,true_relative_residual,numeric_update_seconds,solve_seconds"
+-
+-IFS=',' read -ra SOLVER_LIST <<< "$SOLVERS"
+-overall_status=0
+-for item in "${SOLVER_LIST[@]}"; do
+-    solver_id=${item%%:*}
+-    solver_name=${item#*:}
+-    solver_root="$RUN_ROOT/$solver_id"
+-    mkdir -p "$solver_root"
+-    cp -a "$LIMON_CASE/." "$solver_root/"
+-    log="$solver_root/run.log"
+-    (
+-        cd "$solver_root"
+-        "$MPIEXEC" -np "$MPI_RANKS" "$WWX" \
+-            --input wwx_bench.nml --solver "$solver_id"
+-    ) >"$log" 2>&1
+-    status=$?
+-    if [[ $status -ne 0 ]]; then
+-        overall_status=$status
+-    fi
+-    elapsed=$(grep -oP 'Elapsed time\s*:\s*\K[0-9.eE+-]+' "$log" | tail -n 1 || true)
+-    iterations=$(grep -oP '(OWT-Krylov|PETSc-Full):\s*\K[0-9]+' "$log" | tail -n 1 || true)
+-    if [[ -z "$iterations" ]]; then
+-        iterations=$(grep -oP ':\s*\K[0-9]+(?=\s*(iterations|cycles))' "$log" | tail -n 1 || true)
+-    fi
+-    true_residual=$(grep -oP 'true_rel_residual=\K[0-9.eE+-]+' "$log" | tail -n 1 || true)
+-    update_seconds=$(grep -oP 'update=\K[0-9.eE+-]+' "$log" | tail -n 1 || true)
+-    solve_seconds=$(grep -oP 'solve=\K[0-9.eE+-]+' "$log" | tail -n 1 || true)
+-    printf '%s,%s,%s,%s,%s,%s,%s,%s\n' \
+-        "$solver_id" "$solver_name" "$status" "${elapsed:-NA}" \
+-        "${iterations:-NA}" "${true_residual:-NA}" \
+-        "${update_seconds:-NA}" "${solve_seconds:-NA}"
+-    if [[ $status -ne 0 ]]; then
+-        echo "solver $solver_id log follows:" >&2
+-        tail -n 40 "$log" >&2
+-    fi
+-done
+-
+-exit "$overall_status"
++set -euo pipefail
++ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
++exec python3 "$ROOT/benchmarks/specwave_limon.py" "$@"
+diff --git a/docs/LIMON_BENCHMARK.md b/docs/LIMON_BENCHMARK.md
+index e6f7fd5..145a184 100644
+--- a/docs/LIMON_BENCHMARK.md
++++ b/docs/LIMON_BENCHMARK.md
+@@ -1,31 +1,106 @@
+-# SpecWave Limon benchmark contract
++# SpecWave Limon application benchmark
+ 
+-`benchmarks/specwave_limon.sh` runs the native SpecWave baseline, the borrowed
+-OWT-Krylov adapter, and PETSc from independent temporary copies of the same
+-Limon case. It does not edit `wwx_bench.nml`, `system.dat`, reference results,
+-or manuscript/observational data. SpecWave's `--solver` CLI override changes
+-only the in-memory configuration.
++From OWT-Krylov, using the GNU/OpenMPI-compatible ParMETIS installation:
+ 
+-The controlled fields are:
++```bash
++METIS_PATH=/home/aron/opt/parmetis_gfortran \
++  bash benchmarks/specwave_limon.sh --run-id limon-baseline --ranks 4 --detail-timings
++```
++
++Python `f90nml` and NumPy are required. The runner builds the real application
++through SpecWave's Makefile, with explicit GCC/OpenMPI, double precision,
++`-O3`, AVX2 and finite-value checks. The optional `--detail-timings` build flag
++enables the existing application phase timers. Build flags and hashes accompany
++the retained executable.
++
++The acceptance parser has repository-owned synthetic regression fixtures:
++
++```bash
++PYTHONDONTWRITEBYTECODE=1 python3 benchmarks/test_specwave_limon.py --run-id parser-tests
++```
++
++These validate the benchmark's rejection gates, not a solver run.
+ 
+-- one `system.dat`, NML, partitioner, rank count, spectral block (`36*36`),
+-  initial wave field, time-step count, and stopping tolerance;
+-- one executable, compiler optimization set, MPI implementation, and host;
+-- independently computed `||b-Ax||_2/||b||_2` for OWT-Krylov and PETSc;
+-- separate structural setup, numeric update/assembly, and solve telemetry where
+-  the backend exposes it.
++The checked-in mesh has 1,778 vertices and 36-by-36 spectra (2,304,288 unknowns).
++It is a real application profiling case, not a large production-mesh or
++multi-node scaling qualification. The default runs all 36 timesteps with the
++fixture's physics, refraction, limiters, initial processing and output settings.
++`--steps N` explicitly selects a shorter diagnostic prefix, which is recorded
++and must not be described as the full case. The obsolete `stopping_criteria`
++fixture key has been corrected to `convergence_criteria` in SpecWave.
+ 
+-Build SpecWave with the sibling OWT repository, then run:
++Each run is permanent under `docs/application-performance/runs/<run-id>/`.
++Existing run IDs fail rather than overwrite. Inputs, compiler working storage,
++MPI runtime files, full logs, per-step residuals, state snapshots, binaries,
++source manifests and results stay in that repository-owned tree. The source
++case and reference/observational results are not changed by the runner.
++
++Retain the baseline binary, make the candidate change, build it, then run
++alternating paired samples:
+ 
+ ```bash
+-make -C ../SpecWave/TRITON-C/ww-x -f Makefile.linux \
+-  USE_OWT_KRYLOV=1 USE_PETSC=1
+-WWX=/path/to/ww-x MPI_RANKS=4 benchmarks/specwave_limon.sh
++METIS_PATH=/home/aron/opt/parmetis_gfortran \
++  bash benchmarks/specwave_limon.sh --run-id limon-candidate --build-only --detail-timings
++bash benchmarks/specwave_limon.sh --run-id limon-paired --ranks 4 --repetitions 5 \
++  --baseline docs/application-performance/runs/limon-baseline/bin/ww-x \
++  --candidate docs/application-performance/runs/limon-candidate/bin/ww-x
+ ```
+ 
+-The script records repository revisions, host, MPI launcher, rank count, and a
+-CSV row per solver. A timing comparison is valid only when exit codes are zero
+-and independently verified residuals satisfy the same tolerance. The legacy
+-native ID 12 currently has application convergence output but no independent
+-linear true-residual hook, so it remains a performance baseline rather than a
+-strict residual-matched comparison until that monitor is connected.
++Both executables need matching build manifests emitted by this workflow.
++Every timestep must report a distinct converged solver-22 solve within the
++requested tolerance. Final owned spectra, after application processing, must
++be finite, nonnegative, complete and identical to the first baseline sample.
++Per-step iteration, operator, preconditioner and reduction counts must match.
++This strict gate is for arithmetic-preserving
++changes; algorithmic changes need a separately justified accuracy contract.
++The linear residual is explicitly measured before configured physical limiters.
++
++The primary timing is subprocess wall time, including initialization and output.
++Integration wall time (maximum across ranks, excluding the optional final
++snapshot) is reported separately. Existing solver timings are rank-zero values,
++not MPI critical-path timings. Process binding and before/after host-state
++snapshots (load, memory, available CPU-frequency and thermal readings) are
++recorded. These snapshots are not continuous monitoring or proof of stable
++clocks during a sample. Do not compile or
++run other jobs during timed samples. One pair does not establish a robust gain.
++
++Native ID 12 and PETSc are not silently treated as residual-matched baselines.
++This workflow compares the same external solver before/after a change. Native
++comparisons require an equivalent per-solve complete-operator acceptance hook.
++Archived-reference validation, figure regeneration and fresh application
++reproduction are separate activities; this runner performs only the last.
++
++## AMD uProf profiling
++
++Use the same workflow to build the current source and collect an AMD uProf
++profile of the full case on every MPI rank:
++
++```bash
++METIS_PATH=/home/aron/opt/parmetis_gfortran \
++  bash benchmarks/specwave_limon.sh --run-id limon-uprof --ranks 4 \
++  --detail-timings --amd-uprof /opt/AMDuProf_5.3-521
++```
++
++`--baseline PATH` can reuse a retained executable with its build manifest.
++The runner first runs that binary without profiling, then profiles the same
++binary and requires bitwise-identical final spectra and matching per-step work
++counts. `--steps N` also applies to both runs when selecting a diagnostic prefix.
++The default `hotspots` configuration uses AMD's time sampling; `--uprof-config
++assess`, `ibs`, or `tbp` selects a separate collection that may require additional
++host permissions. The runner never changes kernel settings or capabilities.
++
++The MPI launch follows the installed AMD CLI help: one collector per rank with
++`--mpi`. DWARF call stacks are requested, without changing compiler arithmetic
++options. The CLI binary is invoked directly with its library directory set,
++avoiding the installed shell wrapper's argument re-parsing. Version, help,
++commands, environment and tool hash are retained. All working storage and logs
++are redirected into the run tree. Raw sessions remain under
++`profile-00/uprof/`; the CLI-generated detailed CSV is
++`profile-00/uprof-report.csv`.
++
++These are whole-application diagnostic profiles, including initialization,
++physics, MPI and output, not isolated Krylov timings. Inspect sample coverage
++and resolved symbols before attributing costs. Profiled wall times include
++collector overhead and must not be used to claim speedup. Profiling mode rejects
++candidate comparisons and does not emit a speedup summary. A missing report or
++collection error fails the workflow and retains its logs.
+diff --git a/include/owt/krylov/pipelined_bicgstab.hpp b/include/owt/krylov/pipelined_bicgstab.hpp
+index 822f040..7531534 100644
+--- a/include/owt/krylov/pipelined_bicgstab.hpp
++++ b/include/owt/krylov/pipelined_bicgstab.hpp
+@@ -168,11 +168,23 @@ template<std::floating_point T,
+             return result;
+         }
+ 
+-        axpy(alpha, preconditioned_search, solution);
+-        axpy(omega, preconditioned_intermediate, solution);
+-        for (std::size_t i = 0; i < rhs.owned_size(); ++i) {
+-            residual.data()[i] = intermediate.data()[i]
+-                - omega * operator_intermediate.data()[i];
++        // Keep both solution updates in the same cache-sized slice. Reuse the
++        // existing SIMD kernels so each component retains its operation order.
++        if (!preconditioned_search.same_layout(solution)
++            || !preconditioned_intermediate.same_layout(solution)) {
++            throw std::invalid_argument("BlockVector layout mismatch");
++        }
++        constexpr std::size_t update_tile = 256;
++        for (std::size_t first = 0; first < rhs.owned_size(); first += update_tile) {
++            const std::size_t count = std::min(update_tile, rhs.owned_size() - first);
++            simd::axpy(solution.data() + first, alpha,
++                       preconditioned_search.data() + first, count);
++            simd::axpy(solution.data() + first, omega,
++                       preconditioned_intermediate.data() + first, count);
++            for (std::size_t i = first; i < first + count; ++i) {
++                residual.data()[i] = intermediate.data()[i]
++                    - omega * operator_intermediate.data()[i];
++            }
+         }
+ 
+         std::array<detail::local_scalar_t<Reduction, T>, 2> local_next{
+diff --git a/tests/review/README.md b/tests/review/README.md
+index b84875e..05b78ed 100644
+--- a/tests/review/README.md
++++ b/tests/review/README.md
+@@ -69,6 +69,10 @@ The ordinary (not opt-in) foundation tests cover safe norms, nonfinite solver
+ inputs, borrowed solution/candidate lifetimes, repeated split-SSOR pipelined
+ solves at block sizes 5 and 1296, and timing with copy elision disabled. MPI
+ tests include unequal owned sizes and nonfinite data on just one rank.
++The serial `pipelined_view` case also compares one complete BiCGSTAB iteration
++bitwise against the original two-AXPY solution update, for float/double and
++owned lengths around 256-component chunk boundaries, including guarded views
++and untouched ghosts.
+ 
+ Run the documented serial and matching-MPI builds with separate preserved
+ evidence for each patch stage:
+diff --git a/tests/test_foundation.cpp b/tests/test_foundation.cpp
+index ecc0760..f268417 100644
+--- a/tests/test_foundation.cpp
++++ b/tests/test_foundation.cpp
+@@ -1,7 +1,9 @@
+ #include <owt/krylov/owt_krylov.hpp>
+ 
+ #include <array>
++#include <bit>
+ #include <cmath>
++#include <cstdint>
+ #include <iostream>
+ #include <limits>
+ #include <stdexcept>
+@@ -210,6 +212,61 @@ void check_pipelined_view(Reduction reduction, int rank = 0)
+     }
+ }
+ 
++template<class T>
++void check_pipelined_update_order()
++{
++    for (std::size_t block : {1U, 5U, 85U, 86U, 127U, 128U, 129U, 255U, 256U, 257U, 1296U}) {
++        constexpr std::size_t rows = 3, ghosts = 1;
++        const std::array<std::uint32_t, rows + 1> offsets{};
++        std::vector<T> diagonal(rows * block);
++        BlockVector<T> rhs(rows, ghosts, block);
++        std::vector<T> storage(rhs.local_size() + 2, T(77));
++        auto solution = BlockVector<T>::view(rows, ghosts, block,
++            std::span<T>(storage).subspan(1, rhs.local_size()));
++        auto expected = rhs.clone_layout();
++        auto residual = rhs.clone_layout();
++        auto v = rhs.clone_layout();
++        auto s = rhs.clone_layout();
++        auto t = rhs.clone_layout();
++        for (std::size_t i = 0; i < rhs.owned_size(); ++i) {
++            diagonal[i] = T(2) + T(i % 7) / T(4);
++            rhs.data()[i] = T(1) + T(i % 11) / T(16);
++            solution.data()[i] = T(i % 5) / T(32);
++        }
++        SplitBlockCsrMatrixView<T, std::uint32_t> matrix(
++            rows, ghosts, block, offsets, {}, diagonal, {});
++        copy_owned(solution, expected);
++        matrix.apply(solution, v);
++        for (std::size_t i = 0; i < rhs.owned_size(); ++i)
++            residual.data()[i] = rhs.data()[i] - v.data()[i];
++        matrix.apply(residual, v);
++        SerialReduction<T> reduction;
++        const T alpha = reduction.dot(residual, residual) / reduction.dot(residual, v);
++        for (std::size_t i = 0; i < rhs.owned_size(); ++i)
++            s.data()[i] = residual.data()[i] - alpha * v.data()[i];
++        matrix.apply(s, t);
++        require(reduction.dot(s, s) > T(0), "update fixture took the alpha-only exit");
++        const T omega = reduction.dot(t, s) / reduction.dot(t, t);
++        // Frozen original solution-update sequence for one complete iteration.
++        axpy(alpha, residual, expected);
++        axpy(omega, s, expected);
++        SolverOptions<T> options;
++        options.maximum_iterations = 1;
++        options.relative_tolerance = T(0);
++        const auto result = pipelined_bicgstab(matrix, rhs, solution, options);
++        require(result.iterations == 1 && result.preconditioner_applications == 2,
++                "one-iteration fixture did not exercise both updates");
++        for (std::size_t i = 0; i < rhs.owned_size(); ++i) {
++            using Bits = std::conditional_t<std::same_as<T, float>, std::uint32_t, std::uint64_t>;
++            require(std::bit_cast<Bits>(solution.data()[i]) == std::bit_cast<Bits>(expected.data()[i]),
++                    "pipelined solution update changed operation order");
++        }
++        for (std::size_t i = rhs.owned_size(); i < rhs.local_size(); ++i)
++            require(solution.data()[i] == T(77), "solution update modified a ghost");
++        require(storage.front() == T(77) && storage.back() == T(77), "solution view guard modified");
++    }
++}
++
+ void check_recycling()
+ {
+     Identity<double> op;
+@@ -318,6 +375,8 @@ int main(int argc, char** argv)
+         } else if (name == "pipelined_view") {
+             check_pipelined_view<float>(SerialReduction<float>{});
+             check_pipelined_view<double>(SerialReduction<double>{});
++            check_pipelined_update_order<float>();
++            check_pipelined_update_order<double>();
+             check_reduction_counts();
+         } else if (name == "recycling") check_recycling();
+         else if (name == "timer") check_timer();

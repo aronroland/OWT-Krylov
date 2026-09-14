@@ -1,0 +1,7 @@
+{
+  "argv": [
+    "/usr/bin/mpiexec.openmpi",
+    "--version"
+  ],
+  "cwd": "/home/aron/git/OWT-Krylov"
+}

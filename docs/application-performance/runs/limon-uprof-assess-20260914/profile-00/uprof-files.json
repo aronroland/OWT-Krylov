@@ -1,0 +1,58 @@
+{
+  "uprof/AMDuProf-ww-x-EBP_MPI/binaries/bin.index": {
+    "bytes": 2575,
+    "sha256": "5f17348265217d5153757724c4543383da84c9c2c5230478b039076251bbd413"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/callstack.db": {
+    "bytes": 536576,
+    "sha256": "b7b29a5ae393a3598d4be29718f1befe118e69b800988eb33d50560328fe19a4"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/cpu/CpuProfile_Sep-14-2026_10-04-11_t14s-1455945.caperf": {
+    "bytes": 82698732,
+    "sha256": "7aeb0810b0126c81ef924e6c2936d3599706c48d782ca656d4de0d7c484a5904"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/cpu/CpuProfile_Sep-14-2026_10-04-11_t14s-1455945.ri": {
+    "bytes": 5082,
+    "sha256": "26f0dce16e9ecdc0b1c461bc4b7969fbaf53ec557e30b4f0118adfcfde0d78a0"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/cpu/CpuProfile_Sep-14-2026_10-04-11_t14s-1455946.caperf": {
+    "bytes": 98966500,
+    "sha256": "1d904f4c1f05d40ad8c118f74d0086a535f4ea7892e42d56278cfdb13abef2c7"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/cpu/CpuProfile_Sep-14-2026_10-04-11_t14s-1455947.caperf": {
+    "bytes": 100445524,
+    "sha256": "a490b8aecd4d071c3c0a046180e570482eb805db838bd35603bc25a2d0df18f0"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/cpu/CpuProfile_Sep-14-2026_10-04-11_t14s-1455948.caperf": {
+    "bytes": 98313476,
+    "sha256": "0aff80471927490d62643772ea51c5e7edf5e35f53f503b42d7de156f927dedf"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/cpu.db": {
+    "bytes": 471347200,
+    "sha256": "def08aa0f2f8fa624873b5a32182ff78cd359eba99eda97c0ee5ebf4f0a6692c"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/session.uprof": {
+    "bytes": 31194,
+    "sha256": "abc2b8e5ef21f7cf33bd5c7ad74e1f8496356dec1da351c5fbc40dd2ba86f8b9"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/sessions/session-t14s-1455945.uprof": {
+    "bytes": 28390,
+    "sha256": "6bdd39f36450ed57c93be5f3897b7a291d25ae6ed6b3655e40565380d2ebff4e"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/sessions/session-t14s-1455946.uprof": {
+    "bytes": 28390,
+    "sha256": "95567bb6dc32e822fd5bb96ee622c32c930e64039112c8a1b021b6eeea93656d"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/sessions/session-t14s-1455947.uprof": {
+    "bytes": 28392,
+    "sha256": "8afc55ddadea29eb33e889283ac88bcf7475040d1f42d747089ac17ef002a0bd"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/sessions/session-t14s-1455948.uprof": {
+    "bytes": 28392,
+    "sha256": "0ee5a6ac1dc13f6a3f3a19c24ee73ef06741e3c5137d8c4e37a92a7f63cce702"
+  },
+  "uprof/AMDuProf-ww-x-EBP_MPI/sources/src.index": {
+    "bytes": 8700,
+    "sha256": "1cb0b3ad574fc34d68e2f9b136cd37d5ed58f2b23d88de9af67ecdcf9895d427"
+  }
+}

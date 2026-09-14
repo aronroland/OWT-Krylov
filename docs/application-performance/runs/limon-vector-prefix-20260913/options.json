@@ -1,0 +1,11 @@
+{
+  "run_id": "limon-vector-prefix-20260913",
+  "specwave": "/home/aron/git/SpecWave",
+  "baseline": "docs/application-performance/runs/limon-kernel-profile-20260913/bin/ww-x",
+  "candidate": "docs/application-performance/runs/limon-vector-update-20260913/bin/ww-x",
+  "ranks": 4,
+  "repetitions": 3,
+  "steps": 6,
+  "detail_timings": false,
+  "build_only": false
+}

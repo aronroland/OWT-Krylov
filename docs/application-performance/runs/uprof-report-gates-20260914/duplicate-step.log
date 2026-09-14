@@ -1,0 +1,4 @@
+OWT-Krylov: 4 iterations, true_rel_residual=1e-9, state=pre_physics_limiters, step=0, status=converged, operator_apps=10, preconditioner_apps=8, reductions=15, update=0.1 s, solve=0.2 s
+OWT-Krylov: 4 iterations, true_rel_residual=1e-9, state=pre_physics_limiters, step=1, status=converged, operator_apps=10, preconditioner_apps=8, reductions=15, update=0.1 s, solve=0.2 s
+wwx reached the end of a computation loop
+OWT-Krylov: 4 iterations, true_rel_residual=1e-9, state=pre_physics_limiters, step=0, status=converged, operator_apps=10, preconditioner_apps=8, reductions=15, update=0.1 s, solve=0.2 s

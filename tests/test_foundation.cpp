@@ -1,7 +1,9 @@
 #include <owt/krylov/owt_krylov.hpp>
 
 #include <array>
+#include <bit>
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -210,6 +212,61 @@ void check_pipelined_view(Reduction reduction, int rank = 0)
     }
 }
 
+template<class T>
+void check_pipelined_update_order()
+{
+    for (std::size_t block : {1U, 5U, 85U, 86U, 127U, 128U, 129U, 255U, 256U, 257U, 1296U}) {
+        constexpr std::size_t rows = 3, ghosts = 1;
+        const std::array<std::uint32_t, rows + 1> offsets{};
+        std::vector<T> diagonal(rows * block);
+        BlockVector<T> rhs(rows, ghosts, block);
+        std::vector<T> storage(rhs.local_size() + 2, T(77));
+        auto solution = BlockVector<T>::view(rows, ghosts, block,
+            std::span<T>(storage).subspan(1, rhs.local_size()));
+        auto expected = rhs.clone_layout();
+        auto residual = rhs.clone_layout();
+        auto v = rhs.clone_layout();
+        auto s = rhs.clone_layout();
+        auto t = rhs.clone_layout();
+        for (std::size_t i = 0; i < rhs.owned_size(); ++i) {
+            diagonal[i] = T(2) + T(i % 7) / T(4);
+            rhs.data()[i] = T(1) + T(i % 11) / T(16);
+            solution.data()[i] = T(i % 5) / T(32);
+        }
+        SplitBlockCsrMatrixView<T, std::uint32_t> matrix(
+            rows, ghosts, block, offsets, {}, diagonal, {});
+        copy_owned(solution, expected);
+        matrix.apply(solution, v);
+        for (std::size_t i = 0; i < rhs.owned_size(); ++i)
+            residual.data()[i] = rhs.data()[i] - v.data()[i];
+        matrix.apply(residual, v);
+        SerialReduction<T> reduction;
+        const T alpha = reduction.dot(residual, residual) / reduction.dot(residual, v);
+        for (std::size_t i = 0; i < rhs.owned_size(); ++i)
+            s.data()[i] = residual.data()[i] - alpha * v.data()[i];
+        matrix.apply(s, t);
+        require(reduction.dot(s, s) > T(0), "update fixture took the alpha-only exit");
+        const T omega = reduction.dot(t, s) / reduction.dot(t, t);
+        // Frozen original solution-update sequence for one complete iteration.
+        axpy(alpha, residual, expected);
+        axpy(omega, s, expected);
+        SolverOptions<T> options;
+        options.maximum_iterations = 1;
+        options.relative_tolerance = T(0);
+        const auto result = pipelined_bicgstab(matrix, rhs, solution, options);
+        require(result.iterations == 1 && result.preconditioner_applications == 2,
+                "one-iteration fixture did not exercise both updates");
+        for (std::size_t i = 0; i < rhs.owned_size(); ++i) {
+            using Bits = std::conditional_t<std::same_as<T, float>, std::uint32_t, std::uint64_t>;
+            require(std::bit_cast<Bits>(solution.data()[i]) == std::bit_cast<Bits>(expected.data()[i]),
+                    "pipelined solution update changed operation order");
+        }
+        for (std::size_t i = rhs.owned_size(); i < rhs.local_size(); ++i)
+            require(solution.data()[i] == T(77), "solution update modified a ghost");
+        require(storage.front() == T(77) && storage.back() == T(77), "solution view guard modified");
+    }
+}
+
 void check_recycling()
 {
     Identity<double> op;
@@ -318,6 +375,8 @@ int main(int argc, char** argv)
         } else if (name == "pipelined_view") {
             check_pipelined_view<float>(SerialReduction<float>{});
             check_pipelined_view<double>(SerialReduction<double>{});
+            check_pipelined_update_order<float>();
+            check_pipelined_update_order<double>();
             check_reduction_counts();
         } else if (name == "recycling") check_recycling();
         else if (name == "timer") check_timer();

@@ -1,0 +1,8 @@
+{
+  "argv": [
+    "git",
+    "rev-parse",
+    "HEAD"
+  ],
+  "cwd": "/home/aron/git/OWT-Krylov"
+}

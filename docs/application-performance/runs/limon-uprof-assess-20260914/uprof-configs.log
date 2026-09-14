@@ -1,0 +1,63 @@
+As log file path is not specified in options, AMDUPROF_LOGDIR environment variable is being used!
+List of predefined profiles that can be used with 'collect --config' option:
+
+  tbp          : Time-based Sampling
+                 Use this configuration to identify where programs are spending time.
+  
+                 
+
+  hotspots     : Hotspots
+                 Use this configuration to identify where programs are spending time and 
+                 it's callstack. 
+
+  assess_ext   : Assess Performance (Extended)
+                 Use this configuration for an overall assessment of performance and to 
+                 find the potential issues for further investigation. This has additional 
+                 events to monitor than the Assess Performance configuration.
+                 [PMU Events: PMCx076, PMCx0C0, PMCx1A0, PMCx0C2, PMCx0C3, PMCx029, PMCx060, PMCx047, 
+                              PMCx043, PMCx024, PMCx052, PMCx00E, PMCx061, PMCx063, PMCx050]
+
+  assess       : Assess Performance
+                 Use this configuration to get an overall assessment of performance and 
+                 to find potential issues for further investigation.
+                 [PMU Events: PMCx076, PMCx0C0, PMCx0C2, PMCx0C3, PMCx029, PMCx060, PMCx043, PMCx047]
+
+  inst_access  : Investigate Instruction Access
+                 Use this configuration to find instruction fetches with poor L1 instruction 
+                 cache locality and poor ITLB behavior.
+                 [PMU Events: PMCx076, PMCx0C0, PMCx28F, PMCx18E, PMCx060, PMCx064, PMCx084, PMCx085, 
+                              PMCx094]
+
+  branch       : Investigate Branching
+                 Use this configuration to find poorly predicted branches and near returns.
+                 [PMU Events: PMCx076, PMCx0C0, PMCx0C2, PMCx0C3, PMCx0C4, PMCx0C5, PMCx0C8, PMCx0C9, 
+                              PMCx0CA]
+
+  data_access  : Investigate Data Access
+                 Use this configuration to find data access operations with poor L1 data 
+                 cache locality and poor DTLB behavior.
+                 [PMU Events: PMCx076, PMCx0C0, PMCx029, PMCx060, PMCx043, PMCx047, PMCx045]
+
+  cpi          : Investigate CPI
+                 Basic profile type to analyse the CPI and IPC metrics of the running application 
+                 or the entire system.
+                 [PMU Events: PMCx076, PMCx0C0]
+
+  memory       : Cache Analysis
+                 Use this configuration to identify the false cache-line sharing issues. 
+                 The profile data will be collected using IBS OP.
+
+  threading    : Threading Analysis
+                 Use this configuration to get an overall threading analysis and to find 
+                 potential issues for further investigation.
+                 [PMU Events: PMCx003, PMCx076, PMCx0C0, PMCx043]
+
+  ibs          : Instruction-based Sampling
+                 Use this configuration to collect profile data using Instruction Based 
+                 Sampling. Samples are attributed to instructions precisely with IBS.
+
+  overview     : Overview
+                 Use this configuration to get an overall analysis and to find potential 
+                 issues for further investigation.
+                 [PMU Events: PMCx003, PMCx076, PMCx0C0, PMCx043]
+

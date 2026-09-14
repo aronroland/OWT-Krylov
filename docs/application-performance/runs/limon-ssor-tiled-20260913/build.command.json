@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "make",
+    "-C",
+    "/home/aron/git/SpecWave/TRITON-C/ww-x",
+    "-f",
+    "Makefile.linux",
+    "COMPILER=GNU",
+    "CXX=/usr/bin/mpicxx.openmpi",
+    "CXXFLAGS=-std=c++20 -O3 -g1 -DNDEBUG -march=x86-64-v3 -mno-fma -fno-fast-math -ffp-contract=off -DSPECWAVE_DETAIL_TIMINGS",
+    "USE_OWT_KRYLOV=1",
+    "USE_PETSC=0",
+    "PRECISION=DOUBLE",
+    "METIS_PATH=/home/aron/opt/parmetis_gfortran",
+    "OWT_KRYLOV_ROOT=/home/aron/git/OWT-Krylov",
+    "DESTDIR=/home/aron/git/OWT-Krylov/docs/application-performance/runs/limon-ssor-tiled-20260913/bin"
+  ],
+  "cwd": "/home/aron/git/OWT-Krylov"
+}
