@@ -72,6 +72,12 @@ reproduction are separate activities; this runner performs only the last.
 
 ## Gauss-Seidel and Krylov comparison
 
+This mode requires SpecWave's opt-in `SolverAudit.hpp` integration, published
+at commit `b8180cecd4499634fe016469b4bc2a3b6a003e43` on
+`krylov-solver-audit-20260915`. Point `--specwave` at that checkout or a later
+revision containing the audit integration; an older SpecWave main checkout
+will not emit the required audit records.
+
 ```bash
 METIS_PATH=/home/aron/opt/parmetis_gfortran PYTHONDONTWRITEBYTECODE=1 \
   bash benchmarks/specwave_limon.sh --run-id limon-solver-comparison \
