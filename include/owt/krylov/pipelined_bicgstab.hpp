@@ -50,6 +50,9 @@ template<std::floating_point T,
     BlockVector<T>& preconditioned_intermediate = workspace.vector(7);
     BlockVector<T>& work = workspace.vector(8);
 
+    if (detail::application_convergence(linear_operator, rhs, solution,
+                                        options, reduction, result)) return result;
+
     detail::true_residual(linear_operator, rhs, solution, residual, work, result);
     copy_owned(residual, shadow);
     copy_owned(residual, search);
@@ -144,6 +147,8 @@ template<std::floating_point T,
             // The alpha update may have already solved the system.
             if (intermediate_norm <= threshold) {
                 axpy(alpha, preconditioned_search, solution);
+                if (detail::application_convergence(linear_operator, rhs, solution,
+                                                    options, reduction, result)) return result;
                 detail::true_residual(linear_operator, rhs, solution, residual,
                                       work, result);
                 const T true_norm = detail::norm(reduction, residual, result);
@@ -202,6 +207,8 @@ template<std::floating_point T,
         rho = global_next[0];
         residual_norm = detail::norm_from_squared(reduction, residual, global_next[1], result);
         result.recursive_residual_norm = residual_norm;
+        if (detail::application_convergence(linear_operator, rhs, solution,
+                                            options, reduction, result)) return result;
         if (residual_norm <= threshold) {
             detail::true_residual(linear_operator, rhs, solution, residual,
                                   work, result);
@@ -351,6 +358,9 @@ template<std::floating_point T,
     BlockVector<T>& y = workspace.vector(14);
     BlockVector<T>& operator_work = workspace.vector(15);
 
+    if (detail::application_convergence(linear_operator, rhs, solution,
+                                        options, reduction, result)) return result;
+
     detail::true_residual(linear_operator, rhs, solution, r,
                           operator_work, result);
     copy_owned(r, rp);
@@ -458,6 +468,8 @@ template<std::floating_point T,
             || std::abs(global_first[1]) <= scalar_tiny) {
             if (intermediate_norm <= threshold) {
                 axpy(alpha, p2, solution);
+                if (detail::application_convergence(linear_operator, rhs, solution,
+                                                    options, reduction, result)) return result;
                 detail::true_residual(linear_operator, rhs, solution, r,
                                       operator_work, result);
                 const T true_norm = detail::norm(reduction, r, result);
@@ -517,6 +529,8 @@ template<std::floating_point T,
         residual_norm = detail::norm_from_squared(reduction, r, global_second[0], result);
         rho = global_second[1];
         result.recursive_residual_norm = residual_norm;
+        if (detail::application_convergence(linear_operator, rhs, solution,
+                                            options, reduction, result)) return result;
         if (residual_norm <= threshold) {
             detail::true_residual(linear_operator, rhs, solution, r,
                                   operator_work, result);

@@ -96,6 +96,29 @@ void set_residual_result(SolverResult<T>& result,
         / (rhs_norm > T(0) ? rhs_norm : T(1));
 }
 
+template<class Operator, std::floating_point T, class Reduction>
+bool application_convergence(Operator& op, const BlockVector<T>& rhs,
+                             BlockVector<T>& solution,
+                             const SolverOptions<T>& options,
+                             Reduction& reduction, SolverResult<T>& result)
+{
+    if (!options.convergence_test
+        || !options.convergence_test(result.iterations, solution)) return false;
+    auto residual = rhs.clone_layout();
+    auto work = rhs.clone_layout();
+    true_residual(op, rhs, solution, residual, work, result);
+    const T rhs_norm = norm(reduction, rhs, result);
+    const T true_norm = norm(reduction, residual, result);
+    set_residual_result(result, result.recursive_residual_norm, true_norm, rhs_norm);
+    if (!std::isfinite(true_norm) || !std::isfinite(rhs_norm)) {
+        mark_breakdown(result, BreakdownReason::non_finite_scalar);
+    } else {
+        result.status = SolverStatus::converged;
+        result.converged_by_application = true;
+    }
+    return true;
+}
+
 template<std::floating_point T>
 [[nodiscard]] bool invalid_problem(const BlockVector<T>& rhs,
                                    const BlockVector<T>& solution,
@@ -159,6 +182,11 @@ template<std::floating_point T,
         workspace.vectors(basis_offset, restart + 1);
     const std::span<BlockVector<T>> preconditioned_basis =
         workspace.vectors(preconditioned_basis_offset, restart);
+    if (detail::application_convergence(linear_operator, rhs, solution,
+                                        options, reduction, result)) {
+        if (arnoldi_snapshot != nullptr) arnoldi_snapshot->clear();
+        return result;
+    }
     detail::true_residual(linear_operator, rhs, solution, residual, work, result);
     const T rhs_norm = detail::norm(reduction, rhs, result);
     const T initial_norm = detail::norm(reduction, residual, result);
@@ -177,6 +205,8 @@ template<std::floating_point T,
         return result;
     }
 
+    BlockVector<T> candidate;
+    if (options.convergence_test) candidate = rhs.clone_layout();
     const std::span<T> hessenberg =
         workspace.scalars(0, hessenberg_count);
     const std::span<T> cosine = workspace.scalars(cosine_offset, restart);
@@ -337,6 +367,36 @@ template<std::floating_point T,
 
             const T estimated_residual = std::abs(projected_rhs[columns + 1]);
             result.recursive_residual_norm = estimated_residual;
+            if (options.convergence_test) {
+                // Form x_k without restarting Arnoldi or changing its base x.
+                const auto coefficients = workspace.scalars(
+                    local_orthogonalization_offset, columns + 1);
+                bool nonsingular = true;
+                for (std::size_t row = columns + 1; row-- > 0;) {
+                    T value = projected_rhs[row];
+                    for (std::size_t j = row + 1; j <= columns; ++j)
+                        value -= h(row, j) * coefficients[j];
+                    if (h(row, row) == T(0)) {
+                        nonsingular = false;
+                        break;
+                    }
+                    coefficients[row] = value / h(row, row);
+                }
+                if (nonsingular) {
+                    copy_owned(solution, candidate);
+                    for (std::size_t j = 0; j <= columns; ++j)
+                        axpy(coefficients[j], preconditioned_basis[j], candidate);
+                    ++result.iterations;
+                    if (detail::application_convergence(linear_operator, rhs, candidate,
+                                                        options, reduction, result)) {
+                        if (arnoldi_snapshot != nullptr)
+                            arnoldi_snapshot->finish_cycle(preconditioned_basis, columns + 1);
+                        copy_owned(candidate, solution);
+                        return result;
+                    }
+                    --result.iterations;
+                }
+            }
             if (estimated_residual <= threshold || arnoldi_breakdown) {
                 ++columns;
                 ++result.iterations;
@@ -477,6 +537,9 @@ template<std::floating_point T,
     BlockVector<T>& operator_intermediate = workspace.vector(7);
     BlockVector<T>& work = workspace.vector(8);
 
+    if (detail::application_convergence(linear_operator, rhs, solution,
+                                        options, reduction, result)) return result;
+
     detail::true_residual(linear_operator, rhs, solution, residual, work, result);
     copy_owned(residual, shadow);
     const T rhs_norm = detail::norm(reduction, rhs, result);
@@ -557,6 +620,8 @@ template<std::floating_point T,
         const T intermediate_norm = detail::norm(reduction, intermediate, result);
         if (intermediate_norm <= threshold) {
             axpy(alpha, preconditioned_search, solution);
+            if (detail::application_convergence(linear_operator, rhs, solution,
+                                                options, reduction, result)) return result;
             detail::true_residual(linear_operator, rhs, solution, residual, work, result);
             const T true_norm = detail::norm(reduction, residual, result);
             detail::set_residual_result(result, intermediate_norm, true_norm, rhs_norm);
@@ -607,6 +672,8 @@ template<std::floating_point T,
                 - omega * operator_intermediate.data()[i];
         }
 
+        if (detail::application_convergence(linear_operator, rhs, solution,
+                                            options, reduction, result)) return result;
         const bool replace_residual = options.residual_replacement_interval > 0
             && iteration % options.residual_replacement_interval == 0;
         const bool check_convergence = iteration % options.convergence_check_interval == 0;

@@ -458,6 +458,14 @@ void test_breakdown_reporting()
                 && result.breakdown_reason
                     == BreakdownReason::alpha_denominator,
             "BiCGSTAB did not report its scalar breakdown reason");
+    options.convergence_test = [](std::size_t, const BlockVector<double>&) {
+        return false;
+    };
+    const auto application_gmres = gmres(
+        zero_operator, rhs, solution, options, IdentityPreconditioner{});
+    require(application_gmres.status == SolverStatus::breakdown
+                && !application_gmres.converged_by_application,
+            "GMRES application candidate bypassed singular-system breakdown");
 }
 
 void test_krylov_solvers_on_block_system()
@@ -876,7 +884,74 @@ void test_krylov_solvers_on_block_system()
                       << " residual=" << legacy_result.true_residual_norm << '\n';
         }
         require(legacy_result.converged(), "legacy solver dispatch failed");
+
+        legacy_solution.fill(0);
+        solver_options.maximum_iterations = 1;
+        solver_options.relative_tolerance = 1e-14;
+        std::size_t callback_calls = 0;
+        solver_options.convergence_test = [&](std::size_t iteration,
+                                               const BlockVector<double>& candidate) {
+            require(iteration == callback_calls++,
+                    "native dispatch skipped or repeated a convergence callback");
+            require(std::isfinite(candidate.data()[0]),
+                    "native dispatch supplied a nonfinite candidate");
+            return iteration == 1;
+        };
+        const auto application_result = solve_specwave_native(
+            solver, matrix, operator_view, no_halo, rhs, legacy_solution,
+            solver_options);
+        require(application_result.converged()
+                    && application_result.converged_by_application
+                    && application_result.iterations == 1 && callback_calls == 2,
+                "native solver dispatch ignored the application criterion");
+        auto measured = rhs.clone_layout();
+        operator_view.apply(legacy_solution, measured);
+        for (std::size_t i = 0; i < rhs.owned_size(); ++i)
+            measured.data()[i] = rhs.data()[i] - measured.data()[i];
+        SerialReduction<double> reduction;
+        require(std::abs(application_result.true_residual_norm
+                         - reduction.norm(measured)) < 1e-12,
+                "native application stop did not report the true residual");
     }
+
+    BlockVector<double> application_anderson = exact.clone_layout();
+    auto application_options = stationary_options;
+    std::size_t anderson_calls = 0;
+    application_options.convergence_test = [&](std::size_t iteration,
+                                               const BlockVector<double>&) {
+        require(iteration == anderson_calls++, "Anderson callback cadence");
+        return iteration == 1;
+    };
+    const auto application_anderson_result = anderson_jacobi(
+        operator_view, rhs, application_anderson, application_options,
+        JacobiPreconditioner<double>(matrix));
+    require(application_anderson_result.converged_by_application
+                && application_anderson_result.iterations == 1 && anderson_calls == 2,
+            "Anderson ignored the application criterion");
+
+    ArnoldiSnapshot<double> application_snapshot;
+    BlockVector<double> application_gmres = exact.clone_layout();
+    application_options.convergence_test = [](std::size_t iteration,
+                                               const BlockVector<double>&) {
+        return iteration == 1;
+    };
+    const auto application_gmres_result = fgmres(
+        operator_view, rhs, application_gmres, application_options,
+        IdentityPreconditioner{}, SerialReduction<double>{},
+        static_cast<SolverWorkspace<double>*>(nullptr), &application_snapshot);
+    require(application_gmres_result.converged_by_application
+                && application_snapshot.columns() == 1,
+            "application stop lost its Arnoldi snapshot");
+    application_options.convergence_test = [](std::size_t,
+                                               const BlockVector<double>&) { return true; };
+    const auto initial_application_result = fgmres(
+        operator_view, rhs, application_gmres, application_options,
+        IdentityPreconditioner{}, SerialReduction<double>{},
+        static_cast<SolverWorkspace<double>*>(nullptr), &application_snapshot);
+    require(initial_application_result.converged_by_application
+                && initial_application_result.iterations == 0
+                && application_snapshot.columns() == 0,
+            "initial application stop retained a stale Arnoldi snapshot");
 }
 
 } // namespace

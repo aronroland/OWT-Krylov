@@ -168,6 +168,17 @@ For MPI, use `MpiHaloExchange`, `OverlappedDistributedBlockOperator`, and
 `MpiReduction`. OWT does not initialize or finalize MPI or PETSc; runtime
 ownership remains with the application.
 
+`SolverOptions<T>::convergence_test` optionally supplies an application-defined
+stopping test for native Krylov and stationary methods. It receives iteration
+zero to initialize history, then each completed iterate; GMRES supplies its
+candidate without restarting Arnoldi. The callback owns the checking cadence
+and must make a collective decision in distributed runs. With this option,
+the residual tolerance is replaced (except for an exactly solved system),
+and `SolverResult::converged_by_application` distinguishes application
+acceptance. A true residual is still measured on acceptance. Without a callback,
+the existing algebraic-residual criterion is unchanged. PETSc shell users can
+install the corresponding test with `set_convergence_test`.
+
 ## Claim boundary
 
 The replicated dense coarse solver remains useful only as an inspectable small-

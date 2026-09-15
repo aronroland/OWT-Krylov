@@ -95,6 +95,8 @@ public:
             return result;
         }
         const T threshold = convergence_threshold(rhs_norm, solver_options);
+        if (detail::application_convergence(fine_operator, rhs, solution,
+                                            solver_options, reduction, result)) return result;
         detail::true_residual(fine_operator, rhs, solution, residual, work, result);
         T norm_value = detail::norm(reduction, residual, result);
         result.initial_residual_norm = norm_value;
@@ -179,6 +181,8 @@ public:
             }
 
             smooth_fine(options_.post_smoothing_steps);
+            if (detail::application_convergence(fine_operator, rhs, solution,
+                                                solver_options, reduction, result)) return result;
             detail::true_residual(fine_operator, rhs, solution,
                                   residual, work, result);
             norm_value = detail::norm(reduction, residual, result);

@@ -130,18 +130,140 @@ def parse_solves(output, steps, tolerance):
     return [solves[step] for step in range(steps)]
 
 
+def parse_audits(output, steps, solver, tolerance):
+    solves = {}
+    for line in output.splitlines():
+        if not line.startswith("SolverAudit:"):
+            continue
+        fields = dict(re.findall(r"(\w+)=([^ ,]+)", line))
+        step = int(fields["step"])
+        if (int(fields["solver"]) != solver or step in solves
+                or fields["state"] != "pre_physics_limiters"):
+            raise ValueError(f"invalid solver audit: {line}")
+        item = {"step": step, "iterations": int(fields["iterations"]),
+                "true_relative_residual": float(fields["true_rel_residual"])}
+        for key in ("solve_seconds_rank0", "solve_seconds_max", "audit_seconds_max"):
+            item[key] = float(fields[key])
+        if (any(not math.isfinite(value) or value < 0 for value in item.values())
+                or item["solve_seconds_max"] < item["solve_seconds_rank0"]):
+            raise ValueError(f"invalid solver audit measurement: {line}")
+        item["meets_residual_tolerance"] = item["true_relative_residual"] <= tolerance
+        solves[step] = item
+    if set(solves) != set(range(steps)):
+        raise ValueError(f"expected {steps} solver audits, got {sorted(solves)}")
+    iterations = [int(value) for value in re.findall(r"^nbIter = (\d+)$", output, re.MULTILINE)]
+    ordered = [solves[step] for step in range(steps)]
+    if (iterations != [item["iterations"] for item in ordered]
+            or "Unknown line:" in output
+            or "wwx reached the end of a computation loop" not in output):
+        raise ValueError("incomplete application or inconsistent audited iterations")
+    return ordered
+
+
+def state_difference(state, reference):
+    if state.shape != reference.shape or state.dtype != reference.dtype:
+        raise ValueError("inconsistent solver state layout")
+    difference = state - reference
+    result = {"bitwise_equal": state.tobytes() == reference.tobytes(),
+              "max_absolute": float(np.max(np.abs(difference)))}
+    for name, order in (("l1", 1), ("l2", 2), ("linf", np.inf)):
+        scale = float(np.linalg.norm(reference.ravel(), ord=order))
+        absolute = float(np.linalg.norm(difference.ravel(), ord=order))
+        result["relative_" + name] = absolute / scale if scale else None
+    return result
+
+
+def compare_solvers(directory, binary, env, original, steps, ranks, repetitions, ns, nd, tolerance):
+    solvers = {1: "gauss-seidel", 12: "native-pipelined", 22: "owt-krylov"}
+    results, references, reference_work = [], {}, {}
+    for repetition in range(repetitions):
+        order = list(solvers)
+        shift = repetition % len(order)
+        order = order[shift:] + order[:shift]
+        if (repetition // len(order)) % 2:
+            order.reverse()
+        for solver in order:
+            label = solvers[solver]
+            sample = directory / f"{label}-{repetition:02d}"
+            sample.mkdir()
+            f90nml.patch(original, {"nml_main": {"mnt": steps}, "nml_num": {
+                "solver_type": solver, "solver_check_interval": 1}}, sample / "wwx.nml")
+            shutil.copy2(directory / "system.dat", sample / "system.dat")
+            save(sample / "inputs.json", {name: digest(sample / name)
+                 for name in ("wwx.nml", "system.dat")})
+            command = ["/usr/bin/mpiexec.openmpi", "--bind-to", "core", "--map-by", "core",
+                       "--report-bindings", "-n", str(ranks), str(binary),
+                       "--input", "wwx.nml", "--solver", str(solver), "--final-state", "final-state"]
+            save(sample / "host-before.json", host_state())
+            try:
+                elapsed = record(sample, "run", command, cwd=sample, env=env)
+            finally:
+                save(sample / "host-after.json", host_state())
+            output = (sample / "run.log").read_text()
+            solves = parse_audits(output, steps, solver, tolerance)
+            save(sample / "solves.json", solves)
+            if solver == 22:
+                save(sample / "owt-solves.json", parse_solves(output, steps, tolerance))
+            paths = list(sample.glob("final-state-rank*.bin"))
+            if len(paths) != ranks:
+                raise ValueError("missing final state rank files")
+            state = read_state(paths, ns, nd)
+            if state.dtype.itemsize != 8:
+                raise ValueError("expected double-precision final state")
+            iterations = [item["iterations"] for item in solves]
+            if solver not in references:
+                references[solver], reference_work[solver] = state, iterations
+            if (not state_difference(state, references[solver])["bitwise_equal"]
+                    or iterations != reference_work[solver]):
+                raise ValueError(f"same-solver repetitions differ: {sample}")
+            integration = re.findall(r"^Integration wall seconds: (\S+)$", output, re.MULTILINE)
+            if len(integration) != 1 or not math.isfinite(float(integration[0])) or float(integration[0]) <= 0:
+                raise ValueError("missing or invalid integration timing")
+            result = {"solver": solver, "label": label, "repetition": repetition,
+                      "measurement_kind": "unprofiled_with_postsolve_audit",
+                      "process_seconds": elapsed, "integration_seconds": float(integration[0]),
+                      "vertices": state.shape[0], "components": state.shape[1],
+                      "same_solver_state_bitwise_equal": True, "iterations": sum(iterations),
+                      "max_residual": max(item["true_relative_residual"] for item in solves),
+                      "steps_meeting_residual_tolerance": sum(
+                          item["meets_residual_tolerance"] for item in solves),
+                      "iteration_limit_warning": "WARNING: solver reached maxiter=" in output}
+            for key in ("solve_seconds_rank0", "solve_seconds_max", "audit_seconds_max"):
+                result[key + "_sum"] = sum(item[key] for item in solves)
+            results.append(result)
+            save(directory / "results.json", results)
+            print(json.dumps(result, allow_nan=False), flush=True)
+    summary = {}
+    for solver, label in solvers.items():
+        samples = [item for item in results if item["solver"] == solver]
+        summary[label] = {"solver": solver, "final_state_vs_gauss_seidel": state_difference(
+            references[solver], references[1]), "final_state_vs_owt": state_difference(
+            references[solver], references[22]), "timings": {}}
+        for key in ("process_seconds", "integration_seconds", "solve_seconds_rank0_sum",
+                    "solve_seconds_max_sum", "audit_seconds_max_sum"):
+            times = [item[key] for item in samples]
+            ratios = [next(item[key] for item in results if item["solver"] == 1
+                           and item["repetition"] == sample["repetition"]) / sample[key]
+                      for sample in samples if sample[key] > 0]
+            summary[label]["timings"][key] = {"seconds": times, "median_seconds": statistics.median(times),
+                "gs_time_ratios": ratios, "median_gs_time_ratio": statistics.median(ratios) if ratios else None}
+    save(directory / "summary.json", summary)
+    print(f"Solver comparison evidence: {directory}", flush=True)
+
+
 def source_hashes(specwave):
     result = {}
     for repository, paths in ((ROOT, ["include"]), (specwave, ["TRITON-C/libwwx",
                               "TRITON-C/libwcore", "TRITON-C/ww-x", "TRITON-C/makefile.conf"])):
-        output = subprocess.check_output(["git", "ls-files", "-z", "--", *paths], cwd=repository)
+        output = subprocess.check_output(["git", "ls-files", "--cached", "--others",
+                                          "--exclude-standard", "-z", "--", *paths], cwd=repository)
         for name in output.decode().split("\0"):
             if name and (repository / name).is_file():
                 result[str(repository / name)] = digest(repository / name)
     return result
 
 
-def build(specwave, directory, env, detail_timings):
+def build(specwave, directory, env, detail_timings, solver_audit=False):
     if not env.get("METIS_PATH"):
         raise ValueError("set METIS_PATH to the GNU/OpenMPI-compatible ParMETIS installation")
     binary = directory / "bin" / "ww-x"
@@ -149,6 +271,8 @@ def build(specwave, directory, env, detail_timings):
     flags = "-std=c++20 -O3 -g1 -DNDEBUG -march=x86-64-v3 -mno-fma -fno-fast-math -ffp-contract=off"
     if detail_timings:
         flags += " -DSPECWAVE_DETAIL_TIMINGS"
+    if solver_audit:
+        flags += " -DSPECWAVE_SOLVER_AUDIT"
     compiler = "/usr/bin/mpicxx.openmpi"
     metis = Path(env["METIS_PATH"]).resolve()
     metis_hashes = {str(path): digest(path) for path in (
@@ -245,6 +369,8 @@ def main():
     parser.add_argument("--steps", type=int)
     parser.add_argument("--detail-timings", action="store_true")
     parser.add_argument("--build-only", action="store_true")
+    parser.add_argument("--compare-solvers", action="store_true",
+                        help="compare unchanged GS (1), native pipelined (12), and OWT (22) with residual audits")
     parser.add_argument("--amd-uprof", type=Path, help="AMD uProf installation directory")
     parser.add_argument("--uprof-detail", action="store_true",
                         help="include expensive per-process source-level AMD reports")
@@ -256,6 +382,8 @@ def main():
         parser.error("use a unique simple run ID and positive counts")
     if args.build_only and (args.baseline or args.candidate):
         parser.error("--build-only cannot be combined with retained executables")
+    if args.compare_solvers and (args.candidate or args.amd_uprof):
+        parser.error("solver comparison uses one audited binary and unprofiled repetitions")
     if args.amd_uprof and (args.candidate or args.build_only or args.repetitions != 1):
         parser.error("AMD profiling requires one binary, one repetition and an application run")
     if not args.amd_uprof and (args.uprof_config != "hotspots" or args.uprof_detail):
@@ -302,7 +430,7 @@ def main():
                               ("report-help", ["report", "--help"])):
             record(directory, "uprof-" + name, [str(cli), *options], cwd=directory, env=profile_env)
     binaries = {"baseline": args.baseline.resolve() if args.baseline else
-                build(specwave, directory, env, args.detail_timings)}
+                build(specwave, directory, env, args.detail_timings, args.compare_solvers)}
     if args.build_only:
         print(f"Retained executable: {binaries['baseline']}", flush=True)
         return
@@ -315,6 +443,8 @@ def main():
         manifests[label] = json.loads(binary.with_suffix(".build.json").read_text())
         if digest(binary) != manifests[label]["sha256"]:
             raise ValueError(f"executable differs from its build manifest: {binary}")
+        if ("-DSPECWAVE_SOLVER_AUDIT" in manifests[label]["flags"].split()) != args.compare_solvers:
+            raise ValueError("audited binaries are required only for --compare-solvers")
     if args.candidate:
         for key in ("flags", "compiler", "precision", "compiler_version", "dependencies", "metis"):
             if manifests["baseline"][key] != manifests["candidate"][key]:
@@ -335,6 +465,10 @@ def main():
     shutil.copy2(original, directory / "original.nml")
     save(directory / "inputs.json", {name: digest(directory / name)
          for name in ("input.nml", "original.nml", "system.dat")})
+    if args.compare_solvers:
+        compare_solvers(directory, binaries["baseline"], env, directory / "original.nml",
+                        steps, args.ranks, args.repetitions, ns, nd, tolerance)
+        return
     results, reference, reference_work = [], None, None
     for repetition in range(args.repetitions):
         order = list(binaries)

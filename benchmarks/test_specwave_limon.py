@@ -7,7 +7,8 @@ import struct
 
 import numpy as np
 
-from specwave_limon import ROOT, digest, parse_solves, parse_uprof_ranks, read_state, save, uprof_launch
+from specwave_limon import (ROOT, digest, parse_audits, parse_solves, parse_uprof_ranks,
+                            read_state, save, state_difference, uprof_launch)
 
 
 def main():
@@ -82,6 +83,41 @@ def main():
     for name, output in invalid.items():
         (directory / (name + ".log")).write_text(output)
         check(name, lambda: parse_solves(output, 2, 1e-8), True)
+    audits = "\n".join(
+        f"SolverAudit: solver=1, step={step}, iterations=10, true_rel_residual=1e-9, "
+        "state=pre_physics_limiters, solve_seconds_rank0=0.1, solve_seconds_max=0.2, "
+        "audit_seconds_max=0.01\nnbIter = 10" for step in range(2)) + complete
+    (directory / "audit-valid.log").write_text(audits)
+    check("valid common residual audit", lambda: parse_audits(audits, 2, 1, 1e-8))
+    above = audits.replace("true_rel_residual=1e-9", "true_rel_residual=1e-4")
+    (directory / "audit-over-tolerance.log").write_text(above)
+    check("over-tolerance native result is explicitly marked", lambda: np.testing.assert_equal(
+        [item["meets_residual_tolerance"] for item in parse_audits(above, 2, 1, 1e-8)], [False, False]))
+    invalid_audits = {
+        "wrong-solver": audits.replace("solver=1", "solver=12"),
+        "duplicate-step": audits.replace("step=1", "step=0"),
+        "missing-step": audits.replace("SolverAudit: solver=1, step=1", "missing: solver=1, step=1"),
+        "wrong-state": audits.replace("pre_physics_limiters", "post_limiters"),
+        "iteration-mismatch": audits.replace("nbIter = 10", "nbIter = 11"),
+        "negative-iterations": audits.replace("iterations=10", "iterations=-1"),
+        "missing-completion": audits.replace(complete, ""),
+        "bad-maximum": audits.replace("solve_seconds_max=0.2", "solve_seconds_max=0.01"),
+        "nan-time": audits.replace("audit_seconds_max=0.01", "audit_seconds_max=nan"),
+    }
+    for value in ("nan", "inf", "-1e-9"):
+        invalid_audits["residual-" + value] = audits.replace("true_rel_residual=1e-9", "true_rel_residual=" + value)
+    for name, output in invalid_audits.items():
+        (directory / ("audit-" + name + ".log")).write_text(output)
+        check("audit rejects " + name, lambda: parse_audits(output, 2, 1, 1e-8), True)
+    values = np.array([[1.0, 2.0]])
+    save(directory / "state-difference-fixtures.json", {"state": (2 * values).tolist(),
+         "reference": values.tolist(), "zero_reference": np.zeros_like(values).tolist()})
+    check("state difference relative norms", lambda: np.testing.assert_equal(
+        state_difference(2 * values, values), {"bitwise_equal": False, "max_absolute": 2.0,
+        "relative_l1": 1.0, "relative_l2": 1.0, "relative_linf": 1.0}))
+    check("zero reference has no relative error scale", lambda: np.testing.assert_equal(
+        state_difference(values, np.zeros_like(values))["relative_l2"], None))
+    check("state comparison rejects different layouts", lambda: state_difference(values, values.T), True)
     command = uprof_launch(Path("/opt/AMD uProf/bin/AMDuProfCLI-bin"), "hotspots",
                            directory, Path("/repository/build with spaces/ww-x"))
     save(directory / "uprof-launch-fixture.json", command)

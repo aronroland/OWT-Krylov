@@ -1,0 +1,53 @@
+diff --git a/include/owt/krylov/split_block_csr.hpp b/include/owt/krylov/split_block_csr.hpp
+index 825bd21..6cf9bd0 100644
+--- a/include/owt/krylov/split_block_csr.hpp
++++ b/include/owt/krylov/split_block_csr.hpp
+@@ -7,6 +7,7 @@
+ #include <cmath>
+ #include <concepts>
+ #include <cstddef>
++#include <functional>
+ #include <limits>
+ #include <span>
+ #include <stdexcept>
+@@ -248,9 +249,20 @@ public:
+             || input.block_size() != block_size_) {
+             throw std::invalid_argument("split SSOR vector layout mismatch");
+         }
++        // Reuse output for the forward sweep unless partial overlap could
++        // overwrite input rows that have not yet been consumed.
++        T* forward_values = output.data();
++        const auto before = std::less<const T*>{};
++        if (input.data() != output.data()
++            && before(input.data(), output.data() + output.owned_size())
++            && before(output.data(), input.data() + input.owned_size())) {
++            forward_values = workspace_.data();
++        }
+         for (std::size_t row = 0; row < owned_nodes_; ++row) {
+-            T* forward = workspace_.data() + row * block_size_;
+-            std::copy_n(input.data() + row * block_size_, block_size_, forward);
++            T* forward = forward_values + row * block_size_;
++            if (input.data() != forward_values) {
++                std::copy_n(input.data() + row * block_size_, block_size_, forward);
++            }
+             for (std::size_t entry = as_size(row_offsets_[row]);
+                  entry < as_size(row_offsets_[row + 1]); ++entry) {
+                 const std::size_t column = as_size(columns_[entry]);
+@@ -259,7 +271,7 @@ public:
+                 }
+                 const T* coefficient =
+                     off_diagonal_.data() + entry * block_size_;
+-                const T* previous = workspace_.data() + column * block_size_;
++                const T* previous = forward_values + column * block_size_;
+                 for (std::size_t component = 0; component < block_size_;
+                      ++component) {
+                     forward[component] -= omega_ * coefficient[component]
+@@ -276,7 +288,7 @@ public:
+         // been computed by this backward sweep, so no output clear is needed.
+         for (std::size_t reverse = owned_nodes_; reverse-- > 0;) {
+             T* correction = output.data() + reverse * block_size_;
+-            const T* forward = workspace_.data() + reverse * block_size_;
++            const T* forward = forward_values + reverse * block_size_;
+             for (std::size_t component = 0; component < block_size_;
+                  ++component) {
+                 correction[component] =

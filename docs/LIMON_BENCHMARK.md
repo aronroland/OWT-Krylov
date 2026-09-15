@@ -64,11 +64,56 @@ recorded. These snapshots are not continuous monitoring or proof of stable
 clocks during a sample. Do not compile or
 run other jobs during timed samples. One pair does not establish a robust gain.
 
+The default workflow compares the same external solver before/after a change.
 Native ID 12 and PETSc are not silently treated as residual-matched baselines.
-This workflow compares the same external solver before/after a change. Native
-comparisons require an equivalent per-solve complete-operator acceptance hook.
+The separate solver-comparison mode below measures native residuals explicitly.
 Archived-reference validation, figure regeneration and fresh application
 reproduction are separate activities; this runner performs only the last.
+
+## Gauss-Seidel and Krylov comparison
+
+```bash
+METIS_PATH=/home/aron/opt/parmetis_gfortran PYTHONDONTWRITEBYTECODE=1 \
+  bash benchmarks/specwave_limon.sh --run-id limon-solver-comparison \
+  --compare-solvers --ranks 4 --repetitions 3 --detail-timings
+```
+
+This builds one executable with the opt-in `SPECWAVE_SOLVER_AUDIT` diagnostic
+and runs unchanged Gauss-Seidel (ID 1, application default), native pipelined
+BiCGSTAB (ID 12, Limon fixture selection), and external OWT-Krylov (ID 22).
+Every three repetitions rotate their launch positions; the next three reverse
+the order. Each run starts from the same case with its own cold initialization
+cache. Only the solver selection differs between inputs. Three repetitions
+mean nine full application runs, not nine archived-reference checks.
+
+Native stopping behavior is not replaced: GS checks node convergence every ten
+sweeps, allowing the default 3% unconverged nodes; ID 12 can stop on either its
+recurrence residual or its node check (first iteration, then every ten). Setting the
+same `solver_rtol` does not make these contracts equivalent to OWT's checked
+full-system residual. The opt-in audit measures `||b-Ax||_2/||b||_2` after
+roundoff projection and before first-step processing or physical limiters,
+using the actual spatial coefficients and existing application refraction and
+frequency operators. Norm sums use long double and owned vertices only; halos
+are refreshed. Zero RHS uses absolute scale one. Second-order spectral schemes
+are not supported by this diagnostic.
+
+Every step must have a finite audit. Above-tolerance native results remain in
+the report, explicitly marked, rather than being silently accepted or dropped.
+OWT must additionally pass its existing strict convergence gate. Repetitions
+of each solver require identical final spectra and iteration counts. Across
+different solvers, final spectra are compared by unweighted relative L1/L2/Linf
+and maximum absolute differences, not required to be bitwise identical. These
+are action-spectrum differences, not physical Hs errors or observational skill.
+
+The common solver timer covers preparation, solve, diagnostics and roundoff
+projection, excluding the added residual audit. Rank-zero time and the sum of
+per-step maximum-rank times are recorded; the latter is not a measurement of
+the entire integration critical path. Process/integration times include audit
+overhead, which is also reported separately. Ratios in `summary.json` are
+observed GS time / solver time, not automatically accuracy-matched speedups.
+Do not mix audited binaries with the arithmetic-preserving or AMD workflows.
+`--build-only` and `--baseline PATH` can retain/reuse a comparison binary with
+its manifest, using `--compare-solvers` in both invocations.
 
 ## AMD uProf profiling
 

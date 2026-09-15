@@ -1,0 +1,12 @@
+diff --git a/TRITON-C/libwwx/SolverAudit.hpp b/TRITON-C/libwwx/SolverAudit.hpp
+--- a/TRITON-C/libwwx/SolverAudit.hpp
++++ b/TRITON-C/libwwx/SolverAudit.hpp
+@@ -16,7 +16,7 @@
+     const Array3D<NodeID, SigID, DirID, T>& rhs,
+     Array3D<NodeID, SigID, DirID, T>& solution, SpectralSum spectral_sum)
+ {
+-    dd.exchange(solution);
++    if (!dd.neighborDomains.empty()) dd.exchange(solution);
+     Array2D<SigID, DirID, T> spectral(ns, nd);
+     long double sums[3]{0, 0, 0};
+     for (NodeID row{0}; row < dd.np; ++row) {

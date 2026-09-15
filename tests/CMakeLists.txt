@@ -62,6 +62,15 @@ if(OWT_KRYLOV_BUILD_REVIEW_TESTS)
 endif()
 
 if(OWT_KRYLOV_ENABLE_MPI)
+    add_executable(owt_krylov_application_convergence test_application_convergence.cpp)
+    target_link_libraries(owt_krylov_application_convergence PRIVATE OWT::Krylov)
+    foreach(ranks IN ITEMS 1 2)
+        add_test(NAME owt_krylov_application_convergence_${ranks}_ranks
+            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
+                    $<TARGET_FILE:owt_krylov_application_convergence>)
+        set_tests_properties(owt_krylov_application_convergence_${ranks}_ranks
+            PROPERTIES LABELS contracts TIMEOUT 120)
+    endforeach()
     foreach(ranks IN ITEMS 2 4)
         add_test(NAME owt_krylov_vertex_${ranks}_ranks
             COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ranks}

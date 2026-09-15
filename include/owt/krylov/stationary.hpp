@@ -150,6 +150,8 @@ template<std::floating_point T,
         || relaxation_schedule.empty()) {
         return result;
     }
+    if (detail::application_convergence(linear_operator, rhs, solution,
+                                        options, reduction, result)) return result;
     BlockVector<T> residual = rhs.clone_layout();
     BlockVector<T> correction = rhs.clone_layout();
     BlockVector<T> work = rhs.clone_layout();
@@ -179,6 +181,8 @@ template<std::floating_point T,
                                      correction, result);
         axpy(relaxation_schedule[(iteration - 1) % relaxation_schedule.size()],
              correction, solution);
+        if (detail::application_convergence(linear_operator, rhs, solution,
+                                            options, reduction, result)) return result;
         if (iteration % options.convergence_check_interval == 0 || iteration == 1
             || iteration == options.maximum_iterations) {
             detail::true_residual(linear_operator, rhs, solution, residual, work, result);
@@ -272,6 +276,8 @@ template<std::floating_point T,
         return result;
     }
 
+    if (detail::application_convergence(linear_operator, rhs, solution,
+                                        options, reduction, result)) return result;
     BlockVector<T> residual = rhs.clone_layout();
     BlockVector<T> work = rhs.clone_layout();
     const T rhs_norm = detail::norm(reduction, rhs, result);
@@ -297,6 +303,8 @@ template<std::floating_point T,
          iteration <= options.maximum_iterations; ++iteration) {
         result.iterations = iteration;
         sweep(rhs, solution);
+        if (detail::application_convergence(linear_operator, rhs, solution,
+                                            options, reduction, result)) return result;
         if (iteration % options.convergence_check_interval == 0
             || iteration == 1 || iteration == options.maximum_iterations) {
             detail::true_residual(linear_operator, rhs, solution,
@@ -384,6 +392,8 @@ template<std::floating_point T,
     const T rhs_norm = detail::norm(reduction, rhs, result);
     const T threshold = convergence_threshold(rhs_norm, options);
     std::vector<std::size_t> rows(matrix.owned_nodes());
+    if (detail::application_convergence(linear_operator, rhs, solution,
+                                        options, reduction, result)) return result;
     for (std::size_t row = 0; row < rows.size(); ++row) rows[row] = row;
 
     detail::true_residual(linear_operator, rhs, solution, residual, work, result);
@@ -394,6 +404,8 @@ template<std::floating_point T,
         halo.exchange(solution);
         detail::update_gauss_seidel_rows(matrix, rhs, solution, rows,
                                          options.relaxation);
+        if (detail::application_convergence(linear_operator, rhs, solution,
+                                            options, reduction, result)) return result;
         if (iteration % options.convergence_check_interval == 0 || iteration == 1
             || iteration == options.maximum_iterations) {
             detail::true_residual(linear_operator, rhs, solution, residual, work, result);
@@ -436,6 +448,8 @@ template<std::floating_point T,
     result.initial_residual_norm = detail::norm(reduction, residual, result);
 
     BlockVector<T> exchange_buffer = solution.clone_layout();
+    if (detail::application_convergence(linear_operator, rhs, solution,
+                                        options, reduction, result)) return result;
     for (std::size_t iteration = 1; iteration <= options.maximum_iterations; ++iteration) {
         result.iterations = iteration;
         // An interior row can still be exported on a directed partition graph.
@@ -450,6 +464,8 @@ template<std::floating_point T,
                   solution.ghosts().begin());
         detail::update_gauss_seidel_rows(matrix, rhs, solution,
                                          matrix.boundary_rows(), options.relaxation);
+        if (detail::application_convergence(linear_operator, rhs, solution,
+                                            options, reduction, result)) return result;
         if (iteration % options.convergence_check_interval == 0 || iteration == 1
             || iteration == options.maximum_iterations) {
             detail::true_residual(linear_operator, rhs, solution, residual, work, result);
@@ -495,6 +511,8 @@ template<std::floating_point T,
     const T rhs_norm = detail::norm(reduction, rhs, result);
     const T threshold = convergence_threshold(rhs_norm, options);
     bool history_available = false;
+    if (detail::application_convergence(linear_operator, rhs, solution,
+                                        options, reduction, result)) return result;
 
     detail::true_residual(linear_operator, rhs, solution, residual, work, result);
     result.initial_residual_norm = detail::norm(reduction, residual, result);
@@ -536,6 +554,9 @@ template<std::floating_point T,
         copy_owned(correction, previous_defect);
         copy_owned(fixed_point, previous_fixed_point);
         history_available = true;
+
+        if (detail::application_convergence(linear_operator, rhs, solution,
+                                            options, reduction, result)) return result;
 
         detail::true_residual(linear_operator, rhs, solution, residual, work, result);
         if (iteration % options.convergence_check_interval == 0 || iteration == 1

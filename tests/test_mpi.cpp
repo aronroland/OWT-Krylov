@@ -184,6 +184,8 @@ public:
     PetscCoupledTestOperator(const Matrix& matrix, Halo halo)
         : geographic_(matrix, std::move(halo)) {}
 
+    bool nonfinite_output = false;
+
     void apply(owt::krylov::BlockVector<double>& input,
                owt::krylov::BlockVector<double>& output)
     {
@@ -194,6 +196,8 @@ public:
             output.node(node)[0] += 0.25 * second;
             output.node(node)[1] -= 0.5 * first;
         }
+        if (nonfinite_output)
+            output.data()[0] = std::numeric_limits<double>::quiet_NaN();
     }
 
 private:
@@ -270,6 +274,30 @@ void run_petsc_test(MPI_Comm communicator)
                 && std::abs(shell_solution.node(0)[1]
                             - shell_exact.node(0)[1]) < 1e-10,
             "PETSc shell adapter dropped an application-only coupling");
+
+    shell_solution.fill_owned(0.0);
+    std::size_t convergence_calls = 0;
+    shell_solver.set_convergence_test([&](std::size_t iteration, const BlockVector<double>& candidate) {
+        require(iteration == convergence_calls++, "PETSc convergence callback missed an iterate");
+        require(std::isfinite(candidate.node(0)[0]), "invalid PETSc convergence candidate");
+        return iteration == 1;
+    });
+    const auto early = shell_solver.solve(shell_rhs, shell_solution);
+    require(early.converged() && early.converged_by_application && early.iterations == 1,
+            "PETSc ignored the application convergence criterion");
+    require(early.relative_residual_norm > shell_options.relative_tolerance,
+            "PETSc test did not exercise early application acceptance");
+
+    shell_solution.fill_owned(0.0);
+    shell_solver.set_convergence_test([&](std::size_t iteration, const BlockVector<double>&) {
+        if (iteration == 1) shell_operator.nonfinite_output = rank == 1;
+        return iteration == 1;
+    });
+    const auto nonfinite_exit = shell_solver.solve(shell_rhs, shell_solution);
+    require(!nonfinite_exit.converged() && !nonfinite_exit.converged_by_application
+                && nonfinite_exit.breakdown_reason == BreakdownReason::non_finite_scalar,
+            "PETSc accepted a nonfinite true exit residual from one rank");
+    shell_operator.nonfinite_output = false;
 
     PetscCoarseOptions coarse_options;
     coarse_options.pc_type = PCJACOBI;

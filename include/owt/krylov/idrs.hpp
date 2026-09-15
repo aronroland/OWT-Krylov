@@ -176,6 +176,8 @@ template<std::floating_point T,
     std::vector<BlockVector<T>> basis_residual;
     std::vector<BlockVector<T>> basis_solution;
     std::vector<BlockVector<T>> shadow;
+    if (detail::application_convergence(linear_operator, rhs, solution,
+                                        options, reduction, result)) return result;
     basis_residual.reserve(s);
     basis_solution.reserve(s);
     shadow.reserve(s);
@@ -355,6 +357,9 @@ template<std::floating_point T,
             // against a later, unrelated near-breakdown.
             breakdown_restarts = 0;
 
+            if (detail::application_convergence(linear_operator, rhs, solution,
+                                                options, reduction, result)) return result;
+
             residual_norm = detail::norm(reduction, residual, result);
             result.recursive_residual_norm = residual_norm;
             if (!std::isfinite(residual_norm)) {
@@ -441,6 +446,8 @@ template<std::floating_point T,
         axpy(-omega, operator_work, residual);
         ++result.iterations;
         breakdown_restarts = 0;
+        if (detail::application_convergence(linear_operator, rhs, solution,
+                                            options, reduction, result)) return result;
         residual_norm = detail::norm(reduction, residual, result);
         result.recursive_residual_norm = residual_norm;
         if (!std::isfinite(residual_norm)) {

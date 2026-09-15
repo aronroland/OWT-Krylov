@@ -73,6 +73,9 @@ The serial `pipelined_view` case also compares one complete BiCGSTAB iteration
 bitwise against the original two-AXPY solution update, for float/double and
 owned lengths around 256-component chunk boundaries, including guarded views
 and untouched ghosts.
+The split-SSOR frozen-reference test also covers exact and partially overlapping
+input/output views in both directions, adjacent storage, and poisoned ghosts,
+including float/double component lengths around SIMD boundaries.
 
 Run the documented serial and matching-MPI builds with separate preserved
 evidence for each patch stage:
@@ -89,6 +92,19 @@ including the new tests, but does not run the optional review
 probes. Use `cases` with a separate run ID for the full review
 inventory. These tests run synthetic operators, not an application simulation;
 the MPI pipelined fixture has rank-local matrices and does not validate halos.
+
+For the unified stopping changes, run:
+
+```bash
+OWT_REVIEW_RUN_ID=unified-convergence-dispatch-20260915 bash tests/review/run_review.sh foundation
+```
+
+The core dispatcher checks all 22 native solver selections with and without
+an application stopping hook, plus Anderson and early-stop Arnoldi snapshots.
+The application-convergence MPI test checks six families with a coupled halo,
+early acceptance above the algebraic tolerance, unchanged recurrence, true
+exit residual, callback cadence, and iteration-cap rejection. The optional
+PETSc MPI tests exercise its shell convergence callback.
 
 For serial AddressSanitizer/UndefinedBehaviorSanitizer testing with Clang:
 

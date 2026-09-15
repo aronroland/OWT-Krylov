@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cmath>
 #include <concepts>
+#include <functional>
 #include <cstddef>
 #include <limits>
 #include <memory>
@@ -82,6 +83,8 @@ enum class BreakdownReason {
     return "unknown";
 }
 
+template<std::floating_point T> class BlockVector;
+
 template<std::floating_point T>
 struct SolverOptions {
     T relative_tolerance = T(1e-8);
@@ -95,6 +98,14 @@ struct SolverOptions {
     T relaxation = T(1);
     bool verify_true_residual = true;
     bool collect_timings = false;
+    /** Optional application stopping test. Called at iteration zero to seed
+     * history, then after each complete iterate (including GMRES candidates).
+     * It replaces the residual tolerance, except for an exactly solved system.
+     * Distributed callers must return the same decision on every rank. The
+     * callback owns its check cadence and must not modify the candidate.
+     * A true residual is still measured when it requests successful termination.
+     */
+    std::function<bool(std::size_t, const BlockVector<T>&)> convergence_test;
     GmresOrthogonalization gmres_orthogonalization =
         GmresOrthogonalization::iterated_classical_gram_schmidt;
 };
@@ -117,6 +128,7 @@ struct SolverResult {
     T recursive_residual_norm = std::numeric_limits<T>::quiet_NaN();
     T true_residual_norm = std::numeric_limits<T>::quiet_NaN();
     T relative_residual_norm = std::numeric_limits<T>::quiet_NaN();
+    bool converged_by_application = false;
     /** Allocated only when SolverOptions::collect_timings is enabled. */
     std::shared_ptr<SolverTimings<T>> timings;
 
@@ -541,6 +553,7 @@ template<std::floating_point T>
     if (!std::isfinite(rhs_norm) || !std::isfinite(relative_threshold)) {
         return std::numeric_limits<T>::quiet_NaN();
     }
+    if (options.convergence_test) return T(0);
     return std::max(options.absolute_tolerance, relative_threshold);
 }
 

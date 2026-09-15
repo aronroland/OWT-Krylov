@@ -401,6 +401,7 @@ public:
             if (solution_ != nullptr) VecDestroy(&solution_);
             if (residual_ != nullptr) VecDestroy(&residual_);
             if (matrix_ != nullptr) MatDestroy(&matrix_);
+            if (convergence_solution_ != nullptr) VecDestroy(&convergence_solution_);
         }
     }
 
@@ -418,6 +419,7 @@ public:
         copy_to_petsc(rhs_, rhs, "VecGetArray(rhs)");
         copy_to_petsc(solution_, solution, "VecGetArray(solution)");
         callback_error_.clear();
+        converged_by_application_ = false;
         const PetscErrorCode solve_error = KSPSolve(ksp_, rhs_, solution_);
         if (solve_error != PetscErrorCode(0) && !callback_error_.empty()) {
             throw std::runtime_error("PETSc shell callback: " + callback_error_);
@@ -453,13 +455,62 @@ public:
         result.true_residual_norm = static_cast<T>(true_residual_norm);
         result.relative_residual_norm = static_cast<T>(
             true_residual_norm / (rhs_norm > 0 ? rhs_norm : 1));
+        result.converged_by_application = converged_by_application_;
+        if (!std::isfinite(true_residual_norm) || !std::isfinite(rhs_norm)) {
+            detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+            result.converged_by_application = false;
+        }
         result.timings = std::make_shared<SolverTimings<T>>();
         result.timings->solve_seconds = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - solve_start).count();
         return result;
     }
 
+    void set_convergence_test(
+        std::function<bool(std::size_t,const BlockVector<T>&)> test)
+    {
+        if (!test) throw std::invalid_argument("empty PETSc application convergence test");
+        convergence_test_ = std::move(test);
+        convergence_candidate_ = operator_input_.clone_layout();
+        if (!convergence_solution_)
+            detail::petsc_check(VecDuplicate(rhs_, &convergence_solution_), "VecDuplicate(convergence)");
+        detail::petsc_check(KSPSetConvergenceTest(ksp_, application_convergence, this, nullptr),
+                            "KSPSetConvergenceTest(application)");
+    }
+
 private:
+    static PetscErrorCode application_convergence(KSP ksp, PetscInt iteration,
+        PetscReal norm, KSPConvergedReason* reason, void* context) noexcept
+    {
+        auto* self = static_cast<PetscShellSolver*>(context);
+        try {
+            *reason = KSP_CONVERGED_ITERATING;
+            if (!std::isfinite(norm)) { *reason = KSP_DIVERGED_NANORINF; return 0; }
+            Vec candidate = nullptr;
+            detail::petsc_check(KSPBuildSolution(ksp,self->convergence_solution_,&candidate),
+                                "KSPBuildSolution(convergence)");
+            self->copy_from_petsc(candidate,self->convergence_candidate_);
+            if (self->convergence_test_(static_cast<std::size_t>(iteration),self->convergence_candidate_)) {
+                self->converged_by_application_ = true;
+                *reason = KSP_CONVERGED_RTOL;
+            } else if (norm == PetscReal(0)) {
+                *reason = KSP_CONVERGED_ATOL;
+            } else {
+                PetscInt maximum = 0;
+                detail::petsc_check(KSPGetTolerances(ksp,nullptr,nullptr,nullptr,&maximum),
+                                    "KSPGetTolerances");
+                if (iteration >= maximum) *reason = KSP_DIVERGED_ITS;
+            }
+            return 0;
+        } catch (const std::exception& error) {
+            self->callback_error_ = error.what();
+        } catch (...) {
+            self->callback_error_ = "application convergence callback failed";
+        }
+        *reason = KSP_DIVERGED_BREAKDOWN;
+        return PETSC_ERR_LIB;
+    }
+
     [[nodiscard]] static PetscInt checked_petsc_index(std::uint64_t value)
     {
         if (value > static_cast<std::uint64_t>(PETSC_MAX_INT)) {
@@ -650,6 +701,10 @@ private:
     BlockVector<T> preconditioner_input_;
     BlockVector<T> preconditioner_output_;
     std::string callback_error_;
+    std::function<bool(std::size_t,const BlockVector<T>&)> convergence_test_;
+    BlockVector<T> convergence_candidate_;
+    bool converged_by_application_ = false;
+    Vec convergence_solution_ = nullptr;
     Mat matrix_ = nullptr;
     Vec rhs_ = nullptr;
     Vec solution_ = nullptr;
