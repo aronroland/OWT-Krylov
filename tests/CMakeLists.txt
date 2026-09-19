@@ -7,6 +7,28 @@ target_compile_options(
 )
 add_test(NAME owt_krylov_core_tests COMMAND owt_krylov_core_tests)
 
+add_executable(owt_krylov_schur_tests test_schur.cpp)
+target_link_libraries(owt_krylov_schur_tests PRIVATE OWT::Krylov)
+target_compile_options(owt_krylov_schur_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-ffp-contract=off>)
+add_test(NAME owt_krylov_schur_serial COMMAND owt_krylov_schur_tests)
+set_tests_properties(owt_krylov_schur_serial PROPERTIES LABELS schur TIMEOUT 120)
+if(OWT_KRYLOV_ENABLE_MPI)
+    foreach(ranks IN ITEMS 2 4)
+        add_test(NAME owt_krylov_schur_${ranks}_ranks
+            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
+                $<TARGET_FILE:owt_krylov_schur_tests>)
+        set_tests_properties(owt_krylov_schur_${ranks}_ranks PROPERTIES LABELS schur TIMEOUT 120)
+    endforeach()
+endif()
+
+add_executable(owt_krylov_bicgstab_ilu_audit test_bicgstab_ilu_audit.cpp)
+target_link_libraries(owt_krylov_bicgstab_ilu_audit PRIVATE OWT::Krylov)
+target_compile_options(owt_krylov_bicgstab_ilu_audit PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-ffp-contract=off>)
+add_test(NAME owt_krylov_bicgstab_ilu_audit COMMAND owt_krylov_bicgstab_ilu_audit)
+set_tests_properties(owt_krylov_bicgstab_ilu_audit PROPERTIES LABELS contracts TIMEOUT 30)
+
 add_executable(owt_krylov_vertex_tests consumer/main.cpp)
 target_link_libraries(owt_krylov_vertex_tests PRIVATE OWT::Krylov)
 add_test(NAME owt_krylov_vertex_serial COMMAND owt_krylov_vertex_tests)

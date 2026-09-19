@@ -20,6 +20,8 @@
 #include <owt/krylov/preconditioner.hpp>
 #include <owt/krylov/reduction.hpp>
 #include <owt/krylov/recycling.hpp>
+#include <owt/krylov/schur.hpp>
+#include <owt/krylov/partial_ilu_schur.hpp>
 #include <owt/krylov/simd.hpp>
 #include <owt/krylov/specwave_compat.hpp>
 #include <owt/krylov/split_block_csr.hpp>

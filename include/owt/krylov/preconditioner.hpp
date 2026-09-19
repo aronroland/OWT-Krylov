@@ -7,6 +7,7 @@
 #include <concepts>
 #include <cstddef>
 #include <limits>
+#include <map>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -251,12 +252,13 @@ using RasSsorPreconditioner = LocalSsorPreconditioner<T, Index>;
 
 /** Rank-local block-Jacobi ILU(0), vectorized over every node component. */
 template<std::floating_point T, std::integral Index = std::size_t>
-class Ilu0Preconditioner {
+class IluLevelPreconditioner {
 public:
-    explicit Ilu0Preconditioner(const BlockCsrMatrix<T, Index>& matrix)
+    explicit IluLevelPreconditioner(const BlockCsrMatrix<T, Index>& matrix, std::size_t fill_level = 0)
         : owned_nodes_(matrix.owned_nodes())
         , ghost_nodes_(matrix.ghost_nodes())
         , block_size_(matrix.block_size())
+        , fill_level_(fill_level)
         , workspace_(matrix.owned_nodes(), matrix.ghost_nodes(),
                      matrix.block_size())
     {
@@ -283,12 +285,16 @@ public:
                     static_cast<std::size_t>(matrix.column_indices()[source])
                     < owned_nodes_);
             }
-            if (local_entry_count != row_offsets_[row + 1] - row_offsets_[row]) {
+            if (local_entry_count != original_row_counts_[row]) {
                 throw std::invalid_argument("ILU(0) sparsity pattern changed");
             }
             for (std::size_t destination = row_offsets_[row];
                  destination < row_offsets_[row + 1]; ++destination) {
                 const std::size_t source = source_positions_[destination];
+                if (source == no_source) {
+                    std::fill_n(values_.data()+destination*block_size_, block_size_, T(0));
+                    continue;
+                }
                 if (source < static_cast<std::size_t>(matrix.row_offsets()[row])
                     || source >= static_cast<std::size_t>(
                         matrix.row_offsets()[row + 1])
@@ -310,6 +316,8 @@ public:
     {
         return numeric_updates_;
     }
+
+    [[nodiscard]] std::size_t fill_level() const noexcept { return fill_level_; }
 
     void apply(const BlockVector<T>& input, BlockVector<T>& output) const
     {
@@ -356,31 +364,26 @@ public:
         }
     }
 
+    // Read-only factor storage for diagnostics. L has an implicit unit diagonal;
+    // entries on/above the diagonal belong to U. Columns are rank-local nodes.
+    [[nodiscard]] std::span<const std::size_t> factor_row_offsets() const noexcept { return row_offsets_; }
+    [[nodiscard]] std::span<const std::size_t> factor_columns() const noexcept { return columns_; }
+    [[nodiscard]] std::span<const T> factor_values() const noexcept { return values_; }
+    [[nodiscard]] std::span<const T> inverse_diagonal() const noexcept { return inverse_diagonal_; }
+
 private:
     template<class Matrix>
     void build_local_pattern(const Matrix& matrix)
     {
-        row_offsets_.resize(owned_nodes_ + 1, 0);
-        for (std::size_t row = 0; row < owned_nodes_; ++row) {
-            for (std::size_t source = static_cast<std::size_t>(matrix.row_offsets()[row]);
-                 source < static_cast<std::size_t>(matrix.row_offsets()[row + 1]); ++source) {
-                if (static_cast<std::size_t>(matrix.column_indices()[source]) < owned_nodes_) {
-                    ++row_offsets_[row + 1];
-                }
-            }
-        }
-        for (std::size_t row = 0; row < owned_nodes_; ++row) {
-            row_offsets_[row + 1] += row_offsets_[row];
-        }
-        columns_.resize(row_offsets_.back());
-        values_.resize(row_offsets_.back() * block_size_);
-        source_positions_.resize(row_offsets_.back());
+        row_offsets_.push_back(0);
         diagonal_positions_.resize(owned_nodes_);
-
+        original_row_counts_.resize(owned_nodes_);
+        std::vector<std::size_t> levels;
         for (std::size_t row = 0; row < owned_nodes_; ++row) {
-            std::size_t destination = row_offsets_[row];
             bool diagonal_found = false;
-            std::vector<std::pair<std::size_t, std::size_t>> local_entries;
+            // Symbolic ILU(k): level(i,j) = min(level(i,j),
+            // level(i,p)+level(p,j)+1). Pattern is shared across components.
+            std::map<std::size_t,std::pair<std::size_t,std::size_t>> entries;
             for (std::size_t source = static_cast<std::size_t>(matrix.row_offsets()[row]);
                  source < static_cast<std::size_t>(matrix.row_offsets()[row + 1]); ++source) {
                 const std::size_t column =
@@ -388,24 +391,40 @@ private:
                 if (column >= owned_nodes_) {
                     continue;
                 }
-                local_entries.emplace_back(column, source);
+                if (!entries.emplace(column,std::pair{std::size_t(0),source}).second)
+                    throw std::invalid_argument("ILU requires unique matrix columns");
+                ++original_row_counts_[row];
             }
-            std::sort(local_entries.begin(), local_entries.end());
-            for (const auto& [column, source] : local_entries) {
-                columns_[destination] = column;
-                source_positions_[destination] = source;
-                std::copy(matrix.entry_values(source).begin(),
-                          matrix.entry_values(source).end(),
-                          values_.begin() + static_cast<std::ptrdiff_t>(destination * block_size_));
+            for (auto it=entries.begin(); it!=entries.end() && it->first<row; ++it) {
+                const auto pivot=it->first, lower_level=it->second.first;
+                if (lower_level>=fill_level_) continue;
+                for (auto upper=diagonal_positions_[pivot]+1; upper<row_offsets_[pivot+1]; ++upper) {
+                    if (levels[upper]>fill_level_-lower_level-1) continue;
+                    const auto level=lower_level+levels[upper]+1;
+                    auto [target,inserted]=entries.emplace(columns_[upper],std::pair{level,no_source});
+                    if (!inserted) target->second.first=std::min(target->second.first,level);
+                }
+            }
+            for (const auto& [column, entry] : entries) {
+                const auto [level,source]=entry;
+                const auto destination=columns_.size();
+                columns_.push_back(column);
+                levels.push_back(level);
+                source_positions_.push_back(source);
+                if (source==no_source) values_.insert(values_.end(),block_size_,T(0));
+                else {
+                    const auto coefficient=matrix.entry_values(source);
+                    values_.insert(values_.end(),coefficient.begin(),coefficient.end());
+                }
                 if (column == row) {
                     diagonal_positions_[row] = destination;
                     diagonal_found = true;
                 }
-                ++destination;
             }
             if (!diagonal_found) {
                 throw std::invalid_argument("ILU(0) row has no diagonal");
             }
+            row_offsets_.push_back(columns_.size());
         }
     }
 
@@ -470,6 +489,9 @@ private:
     std::size_t owned_nodes_;
     std::size_t ghost_nodes_;
     std::size_t block_size_;
+    std::size_t fill_level_;
+    static constexpr std::size_t no_source = std::numeric_limits<std::size_t>::max();
+    std::vector<std::size_t> original_row_counts_;
     std::vector<std::size_t> row_offsets_;
     std::vector<std::size_t> columns_;
     std::vector<std::size_t> diagonal_positions_;
@@ -478,6 +500,14 @@ private:
     std::vector<T> inverse_diagonal_;
     mutable BlockVector<T> workspace_;
     std::size_t numeric_updates_ = 0;
+};
+
+// Preserve the explicit zero-fill API and its existing call sites.
+template<std::floating_point T, std::integral Index = std::size_t>
+class Ilu0Preconditioner : public IluLevelPreconditioner<T,Index> {
+public:
+    explicit Ilu0Preconditioner(const BlockCsrMatrix<T,Index>& matrix)
+        : IluLevelPreconditioner<T,Index>(matrix,0) {}
 };
 
 /**
