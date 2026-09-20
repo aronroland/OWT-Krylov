@@ -21,7 +21,8 @@ def main():
         result = unittest.TextTestRunner(stream=stream, verbosity=2).run(suite)
     evidence = {"finished": datetime.now(timezone.utc).isoformat(), "passed": result.wasSuccessful(),
         "tests": result.testsRun, "log": str(log), "command": sys.argv,
-        "sources": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in source.glob("*.py")},
+        "sources": {str(p): hashlib.sha256(p.read_bytes()).hexdigest()
+                    for pattern in ("*.py", "*.cpp") for p in source.glob(pattern)},
         "fixture_audit": json.loads((root / "build/ilu-audit/results.json").read_text())[-1]}
     history.append(evidence)
     results.write_text(json.dumps(history, indent=2)+"\n")

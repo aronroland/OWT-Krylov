@@ -29,6 +29,76 @@ operator structure from single-precision iteration arithmetic.
 
 ## Regression
 
+`coupled.py` provides memory-mapped full-system matrix, transpose, ILU-inverse,
+inverse-transpose and factor-product actions, including cross-frequency entries.
+Its small C++ kernels compile with `c++` into `build/coupled-kernels/`, with
+the command, compiler output and binary hash retained. The regression below
+checks these actions against dense coupled float32/float64 examples and the
+existing one-/two-rank Triton exports. Synthetic inputs remain under
+`build/coupled-analysis-tests/`. Vector layout uses global node IDs; the
+exported rank-local factor ordering and reciprocal pivots remain unchanged.
+These checks establish the offline actions, not a Duck convergence result.
+
+For a complete coupled capture, use a new run ID:
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONDONTWRITEBYTECODE=1 python3 benchmarks/matrix_analysis/analyze_coupled.py SNAPSHOT_PREFIX --run-id duck-coupled-audit --power-steps 12 --max-estimated-gib 12
+```
+
+Outputs stay in `build/coupled-analysis/RUN_ID/`. This computes full-system
+sign/dominance and norm metrics, the actual frequency-coupling graph, positive-
+vector M-matrix tests, and the action of each preconditioner-defect component
+on the captured initial residual. The normalized Gram matrix records both
+component magnitudes and cancellation. A component norm is specific to that
+residual direction. The remaining local-factor term includes dropped fill and
+retained arithmetic defects; this workflow does not separate those two terms.
+For `r=b-Ax` and `z=P^-1 r`, a unit correction `x+z` leaves residual
+`r-Az`; this is the separately reported unit-correction ratio. It is not
+a BiCGSTAB iteration, which chooses its own polynomial coefficients.
+The boundary component contains the same-rank, same-bin off-diagonal trace
+entries of A. The report checks whether the exported factor rows are identity
+on trace bins. If they are not, corresponding factor contributions remain in
+the local-factor term and their cancellation appears in the Gram matrix.
+Power-iteration defect norms are lower estimates, and the normality commutator
+is evaluated on a recorded unit-probe construction, not as a full norm.
+Positive-vector tests use floating-point guards, not interval arithmetic.
+Optional `--inverse-steps 128` solves `A q = 1` and `A^T q = 1` with the
+captured preconditioner. For a Z-matrix, positive q and Aq certify inverse
+positivity. When `eta = ||Aq-1||inf` (including the recorded rounding guard)
+is below one, `max(q)/(1+eta)` and `max(q)/(1-eta)` bound `||A^-1||inf`;
+the transpose gives `||A^-1||1`. The report checks these hypotheses rather
+than relying on the iterative solver's return code. The resulting condition-
+number intervals are numerically guarded bounds, not interval-certified ones.
+The bound follows from `q - A^-1 1 = A^-1 (Aq-1)` and, for a nonnegative
+inverse, `||A^-1 1||inf = ||A^-1||inf`. Applying the triangle inequality
+in both directions gives the two denominators above.
+The optional `--steps N` adds the existing common-polynomial GMRES/BiCGSTAB
+replay across the entire matrix, including frequency-shift couplings. Its
+relative residual is normalized by the initial residual, not by the RHS or
+Triton's per-node metric. Additional explicit residual evaluations are
+diagnostic work outside the reported iteration application counts.
+The memory estimate includes mapped input storage plus working vectors and
+the GMRES basis; the default budget is 12 GiB. Peak RSS is recorded separately.
+An end-to-end CLI check on the retained two-rank synthetic export is:
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONDONTWRITEBYTECODE=1 python3 benchmarks/matrix_analysis/analyze_coupled.py build/ilu-audit/matrix-audit-16-2-ranks --run-id two-rank-cli-20260919-v2 --steps 20 --power-steps 8 --inverse-steps 128 --max-estimated-gib 1
+```
+
+Use the fixture prefix produced by your audit run and a new analysis run ID
+when repeating. This command checks the capture-to-report workflow on 54
+synthetic unknowns; it supplies no physical Duck measurements.
+
+Cross-check against the retained physical Limon capture and its independent
+frequency-block analysis (archived-matrix replay, no wave simulation):
+
+```bash
+taskset -c 8 env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONDONTWRITEBYTECODE=1 python3 benchmarks/matrix_analysis/analyze_coupled.py ../Triton_C/regtest/steady/limon/solver_runs/matrix-20260919b/owt-bicgstab-ilu0-alias13-00/owt-matrix-step-1-stage-0-positive-backbone-pass-0 --run-id limon-coupled-crosscheck-20260919 --steps 40 --power-steps 8 --inverse-steps 128 --max-estimated-gib 4
+```
+
+CPU 8 is on physical core 4 of the audited t14s; select an appropriate CPU
+on another machine. The report records actual CPU affinity and elapsed time.
+
 From the OWT-Krylov root, using NumPy and SciPy:
 
 ```sh
