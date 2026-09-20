@@ -68,6 +68,33 @@ int main(int argc,char** argv) {
             x.fill(0);
             require(solve(options).status==SolverStatus::maximum_iterations,"callback rejection ignored");
         }
+        // A full-operator GS sweep does not consume the diagnostic residual.
+        // Count operator calls to prevent restoring a redundant apply per sweep.
+        SolverOptions<float> options;
+        options.maximum_iterations=5; options.convergence_check_interval=1;
+        options.convergence_test=[](size_t iteration,const Vector&) { return iteration==5; };
+        auto sweep=[](const Vector& b,Vector& y) {
+            for(size_t i=0;i<y.owned_size();++i) y.data()[i] += 0.01f*b.data()[i];
+        };
+        x.fill(0);
+        auto result=stationary_sweep(op,rhs,x,options,sweep,reduction);
+        require(result.converged_by_application && result.iterations==5,
+                "stationary application stopping rule changed");
+        require(result.operator_applications==2,
+                "stationary sweep recomputed an unused residual between checks");
+        options.convergence_test=[](size_t,const Vector&) { return false; };
+        x.fill(0);
+        result=stationary_sweep(op,rhs,x,options,sweep,reduction);
+        require(result.status==SolverStatus::maximum_iterations && result.operator_applications==2,
+                "stationary failure did not preserve final residual diagnostics");
+        struct Identity {
+            void apply(Vector& a,Vector& b) { copy_owned(a,b); }
+        } identity;
+        copy_owned(rhs,x);
+        auto unchanged=[](const Vector&,Vector&) {};
+        result=stationary_sweep(identity,rhs,x,options,unchanged,reduction);
+        require(result.status==SolverStatus::maximum_iterations && result.true_residual_norm==0,
+                "zero residual bypassed an application veto");
         if(!rank) std::cout << "Six solver families: application stop, algebraic cap, recurrence and MPI checks passed\n";
     } catch(const std::exception& error) {
         std::cerr << error.what() << '\n'; MPI_Abort(MPI_COMM_WORLD,1);

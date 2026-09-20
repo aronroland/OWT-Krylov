@@ -259,8 +259,6 @@ public:
         , ghost_nodes_(matrix.ghost_nodes())
         , block_size_(matrix.block_size())
         , fill_level_(fill_level)
-        , workspace_(matrix.owned_nodes(), matrix.ghost_nodes(),
-                     matrix.block_size())
     {
         build_local_pattern(matrix);
         factorize();
@@ -327,16 +325,17 @@ public:
             || input.block_size() != block_size_) {
             throw std::invalid_argument("ILU(0) preconditioner layout mismatch");
         }
-        BlockVector<T>& work = workspace_;
-
+        // Lower rows only read completed lower rows. Store the forward solve
+        // directly in output, then replace it with the backward solve.
         for (std::size_t row = 0; row < owned_nodes_; ++row) {
-            T* y = work.data() + row * block_size_;
-            std::copy_n(input.data() + row * block_size_, block_size_, y);
+            T* y = output.data() + row * block_size_;
+            if (input.data() != output.data())
+                std::copy_n(input.data() + row * block_size_, block_size_, y);
             for (std::size_t entry = row_offsets_[row];
                  entry < diagonal_positions_[row]; ++entry) {
                 const std::size_t column = columns_[entry];
                 const T* factor = values_.data() + entry * block_size_;
-                const T* previous = work.data() + column * block_size_;
+                const T* previous = output.data() + column * block_size_;
                 for (std::size_t component = 0; component < block_size_; ++component) {
                     y[component] -= factor[component] * previous[component];
                 }
@@ -346,7 +345,6 @@ public:
         for (std::size_t reverse = owned_nodes_; reverse-- > 0;) {
             const std::size_t row = reverse;
             T* x = output.data() + row * block_size_;
-            std::copy_n(work.data() + row * block_size_, block_size_, x);
             for (std::size_t entry = diagonal_positions_[row] + 1;
                  entry < row_offsets_[row + 1]; ++entry) {
                 const std::size_t column = columns_[entry];
@@ -498,7 +496,6 @@ private:
     std::vector<std::size_t> source_positions_;
     std::vector<T> values_;
     std::vector<T> inverse_diagonal_;
-    mutable BlockVector<T> workspace_;
     std::size_t numeric_updates_ = 0;
 };
 

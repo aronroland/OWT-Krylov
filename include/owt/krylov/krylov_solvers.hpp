@@ -676,7 +676,8 @@ template<std::floating_point T,
                                             options, reduction, result)) return result;
         const bool replace_residual = options.residual_replacement_interval > 0
             && iteration % options.residual_replacement_interval == 0;
-        const bool check_convergence = iteration % options.convergence_check_interval == 0;
+        const bool check_convergence = !options.convergence_test
+            && iteration % options.convergence_check_interval == 0;
         if (replace_residual || check_convergence) {
             const T recursive_norm = detail::norm(reduction, residual, result);
             if (replace_residual || recursive_norm <= threshold) {

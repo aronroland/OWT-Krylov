@@ -294,7 +294,7 @@ template<std::floating_point T,
         detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
         return result;
     }
-    if (initial_norm <= threshold) {
+    if (!options.convergence_test && initial_norm <= threshold) {
         result.status = SolverStatus::converged;
         return result;
     }
@@ -305,6 +305,11 @@ template<std::floating_point T,
         sweep(rhs, solution);
         if (detail::application_convergence(linear_operator, rhs, solution,
                                             options, reduction, result)) return result;
+        // The sweep does not consume this residual. With an application-owned
+        // stopping rule, evaluating it every sweep only duplicates operator
+        // work. Acceptance above and the final failure below still measure it.
+        if (options.convergence_test && iteration < options.maximum_iterations)
+            continue;
         if (iteration % options.convergence_check_interval == 0
             || iteration == 1 || iteration == options.maximum_iterations) {
             detail::true_residual(linear_operator, rhs, solution,
@@ -316,7 +321,7 @@ template<std::floating_point T,
                     result, BreakdownReason::non_finite_scalar);
                 return result;
             }
-            if (norm <= threshold) {
+            if (!options.convergence_test && norm <= threshold) {
                 result.status = SolverStatus::converged;
                 return result;
             }

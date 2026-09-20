@@ -7,6 +7,13 @@ target_compile_options(
 )
 add_test(NAME owt_krylov_core_tests COMMAND owt_krylov_core_tests)
 
+add_executable(owt_krylov_ilu_apply test_ilu_apply.cpp)
+target_link_libraries(owt_krylov_ilu_apply PRIVATE OWT::Krylov)
+target_compile_options(owt_krylov_ilu_apply PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-ffp-contract=off>)
+add_test(NAME owt_krylov_ilu_apply COMMAND owt_krylov_ilu_apply)
+set_tests_properties(owt_krylov_ilu_apply PROPERTIES LABELS contracts TIMEOUT 30)
+
 add_executable(owt_krylov_schur_tests test_schur.cpp)
 target_link_libraries(owt_krylov_schur_tests PRIVATE OWT::Krylov)
 target_compile_options(owt_krylov_schur_tests PRIVATE
