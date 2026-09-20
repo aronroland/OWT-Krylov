@@ -65,7 +65,14 @@ from integration and consistency work still required.
   `solver_type=22` AsyncPipeStable selector; IDs 23--30 are OWT extensions.
 
 The detailed mapping is in
-[SpecWave port matrix](docs/SPECWAVE_PORT_MATRIX.md).
+[SpecWave port matrix](docs/SPECWAVE_PORT_MATRIX.md). For the complete API
+reference and usage guide, see the manual
+([PDF](docs/MANUAL.pdf), [LaTeX source](docs/MANUAL.tex)):
+
+```bash
+pdflatex -output-directory=docs docs/MANUAL.tex   # run twice to settle
+pdflatex -output-directory=docs docs/MANUAL.tex   # the table of contents
+```
 
 ## Build and test
 

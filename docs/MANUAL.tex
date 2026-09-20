@@ -1,0 +1,2207 @@
+\documentclass[11pt,a4paper]{report}
+
+% ---------------------------------------------------------------------------
+% Encoding, fonts, language
+% ---------------------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[english]{babel}
+\usepackage{microtype}
+\usepackage{textcomp}
+
+% ---------------------------------------------------------------------------
+% Page geometry and running heads
+% ---------------------------------------------------------------------------
+\usepackage{geometry}
+\geometry{a4paper,margin=1in}
+\usepackage{parskip}
+\usepackage{fancyhdr}
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\thepage}
+\fancyhead[RE]{\nouppercase{\leftmark}}
+\fancyhead[LO]{\nouppercase{\rightmark}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\usepackage{titlesec}
+\titleformat{\chapter}[hang]{\normalfont\huge\bfseries}{\thechapter}{1em}{}
+\titlespacing*{\chapter}{0pt}{10pt}{24pt}
+
+% ---------------------------------------------------------------------------
+% Math, tables, lists
+% ---------------------------------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{enumitem}
+\setlist[itemize]{topsep=2pt,itemsep=2pt,parsep=0pt}
+\setlist[enumerate]{topsep=2pt,itemsep=2pt,parsep=0pt}
+\setlist[description]{topsep=2pt,itemsep=4pt,parsep=0pt}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash\ttfamily\small}p{#1}}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% ---------------------------------------------------------------------------
+% Code listings
+% ---------------------------------------------------------------------------
+\usepackage{xcolor}
+\usepackage{listings}
+
+\definecolor{listingbg}{gray}{0.95}
+\definecolor{listingrule}{gray}{0.6}
+\definecolor{kwcolor}{rgb}{0.10,0.30,0.60}
+\definecolor{cmtcolor}{rgb}{0.35,0.35,0.35}
+\definecolor{strcolor}{rgb}{0.60,0.30,0.05}
+
+\lstdefinestyle{cppstyle}{
+  language=C++,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{kwcolor}\bfseries,
+  commentstyle=\color{cmtcolor}\itshape,
+  stringstyle=\color{strcolor},
+  numbers=none,
+  breaklines=true,
+  breakatwhitespace=false,
+  showstringspaces=false,
+  columns=fullflexible,
+  keepspaces=true,
+  frame=single,
+  rulecolor=\color{listingrule},
+  framesep=4pt,
+  backgroundcolor=\color{listingbg},
+  tabsize=4,
+  morekeywords={std,span,floating_point,integral,requires,concept,constexpr,
+    noexcept,nodiscard,using,namespace,template,typename,class,struct,enum,
+    override,final,explicit,mutable,auto,uint64_t},
+}
+\lstdefinestyle{bashstyle}{
+  language=bash,
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  breakatwhitespace=false,
+  showstringspaces=false,
+  frame=single,
+  rulecolor=\color{listingrule},
+  framesep=4pt,
+  backgroundcolor=\color{listingbg},
+}
+\lstset{style=cppstyle}
+
+\newcommand{\cmakecode}[1]{\lstinline[style=cppstyle,language={}]!#1!}
+
+% ---------------------------------------------------------------------------
+% Cross references and metadata (load hyperref late)
+% ---------------------------------------------------------------------------
+\usepackage[bookmarksdepth=3,bookmarksopen=true]{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!45!black,
+  citecolor=black,
+  urlcolor=blue!45!black,
+  pdftitle={OWT-Krylov Manual},
+  pdfauthor={OWT-Krylov Project},
+  pdfsubject={Reference manual for the OWT-Krylov distributed solver library},
+}
+
+\newcommand{\secref}[1]{\S\ref{#1}}
+
+\begin{document}
+
+% ===========================================================================
+\begin{titlepage}
+\centering
+\vspace*{2.5cm}
+{\Huge\bfseries OWT-Krylov Manual\par}
+\vspace{0.6cm}
+{\Large A distributed Krylov solver library for unstructured grids\par}
+\vspace{1.6cm}
+{\large Complete technical reference: core data structures, execution and\\
+low-level kernels, the Krylov solver API, preconditioners, coarse levels\\
+and multigrid, MPI and PETSc integration, and the SpecWave compatibility\\
+layer.\par}
+\vfill
+{\large OWT-Krylov Project\par}
+\vspace{0.3cm}
+{\large 2026-08-31\par}
+\vspace{1cm}
+{\small Companion documents: \texttt{README.md},
+\texttt{docs/ROADMAP.md}, \texttt{docs/SPECWAVE\_PORT\_MATRIX.md},
+\texttt{docs/LIMON\_BENCHMARK.md}, \texttt{literature/REPOSITORY\_REVIEW.md}.\par}
+\end{titlepage}
+
+\tableofcontents
+
+% ===========================================================================
+\chapter*{About this manual}
+\addcontentsline{toc}{chapter}{About this manual}
+
+This is the complete technical reference for OWT-Krylov: a C++20,
+header-only, MPI-optional distributed Krylov solver library for
+unstructured grids. It assumes the reader is comfortable with sparse
+linear algebra and Krylov methods; it does not re-derive the algorithms,
+only documents precisely what this implementation does, how the pieces
+compose, and where the sharp edges are.
+
+For a one-page feature list see \texttt{README.md}. For the SpecWave
+legacy solver-ID mapping see \texttt{docs/SPECWAVE\_PORT\_MATRIX.md}. For
+the cross-repository design review that shaped this API see
+\texttt{literature/REPOSITORY\_REVIEW.md}.
+
+% ===========================================================================
+\chapter{Design and scope}
+\label{sec:1}
+
+OWT-Krylov is the standalone extraction of SpecWave's distributed solver
+architecture for unstructured grids. Its storage unit is a contiguous
+block per unstructured-grid node --- owned nodes first, then ghost nodes,
+each block \lstinline!block_size()! scalars wide --- not scalar CSR. Every
+matrix, vector, and preconditioner type in the library is built around
+that layout.
+
+The library occupies a specific niche relative to full solver frameworks
+(PETSc, Trilinos, hypre, Ginkgo). It is:
+
+\begin{itemize}
+\item a compact C++20 header-only library, not a package ecosystem;
+\item domain decomposition and unstructured node ownership as first-class
+  public API concepts (\lstinline!DistributedLayout!, owned/ghost
+  \lstinline!BlockVector!), not something bolted on;
+\item serial and MPI execution through the same algorithmic interface ---
+  every solver is templated on an \lstinline!Operator!/\lstinline!Preconditioner!/\lstinline!Reduction!
+  policy, so swapping \lstinline!SerialReduction<T>! for \lstinline!MpiReduction<T>! is the
+  only change needed to go distributed;
+\item the complete, inspectable SpecWave nonsymmetric solver family
+  (GMRES, BiCGSTAB in three communication profiles, IDR(s)) plus
+  domain-decomposition preconditioners, all native C++, no virtual
+  dispatch on the hot path;
+\item adapters to PETSc rather than in-tree reimplementations of
+  algebraic multigrid --- PETSc is used as both an optional backend and
+  a correctness oracle, never reproduced.
+\end{itemize}
+
+OWT does not initialize or finalize MPI or PETSc. Runtime ownership of
+both stays with the application. The library also does not own mesh
+geometry: it consumes ownership/adjacency products of a partitioner
+(\lstinline!DistributedLayout!) and accepts matrix-free operators, so
+application-specific physics (boundary conditions, refraction terms,
+spectral coupling, NML parsing in SpecWave's case) never needs to be
+flattened into the block-CSR core.
+
+% ===========================================================================
+\chapter{Requirements and building}
+\label{sec:2}
+
+\begin{itemize}
+\item C++20 compiler (the library uses \lstinline!std::floating_point!/\lstinline!std::integral!
+  concepts, \lstinline!std::span!, and designated aggregate patterns throughout).
+\item CMake $\geq$ 3.20.
+\item Optional: an MPI implementation with a C++ compiler wrapper,
+  PETSc (built against the \emph{same} MPI implementation as the compiler/MPI
+  target), LAPACK, and an OpenMP-Target-capable compiler.
+\end{itemize}
+
+\section{CMake options}
+\label{sec:2.1}
+
+\begin{longtable}{L{0.30\textwidth}C{0.08\textwidth}P{0.52\textwidth}}
+\toprule
+Option & Default & Effect \\
+\midrule
+\endhead
+OWT\_KRYLOV\_ENABLE\_MPI & OFF & Links \lstinline!MPI::MPI_CXX!; defines \lstinline!OWT_KRYLOV_ENABLE_MPI=1!, which gates \texttt{mpi\_halo.hpp}, the MPI reduction policies in \texttt{reduction.hpp}, and everything in \texttt{overlap.hpp}/\texttt{overlap\_plan.hpp}/\texttt{coarse.hpp}. \\
+OWT\_KRYLOV\_ENABLE\_PETSC & OFF & Requires \lstinline!OWT_KRYLOV_ENABLE_MPI=ON! (fatal CMake error otherwise). Links PETSc via \lstinline!pkg_check_modules!; defines \lstinline!OWT_KRYLOV_ENABLE_PETSC=1!, gating \texttt{petsc\_adapter.hpp} and \texttt{petsc\_coarse.hpp}. \\
+OWT\_KRYLOV\_ENABLE\_LAPACK & OFF & Links \lstinline!LAPACK::LAPACK!; defines \lstinline!OWT_KRYLOV_ENABLE_LAPACK=1!, gating \texttt{gcrodr.hpp} (harmonic-Ritz GCRO-DR extraction). \\
+OWT\_KRYLOV\_ENABLE\_OPENMP\_TARGET & OFF & Links \lstinline!OpenMP::OpenMP_CXX!; defines \lstinline!OWT_KRYLOV_ENABLE_OPENMP_TARGET=1!, gating \lstinline!OpenMPTargetExecutionPolicy! in \texttt{execution.hpp}. \\
+OWT\_KRYLOV\_BUILD\_TESTS & ON & Builds the \texttt{tests/} suite via CTest. \\
+OWT\_KRYLOV\_BUILD\_BENCHMARKS & OFF & Builds \lstinline!owt_krylov_unstructured_benchmark! and, if MPI is enabled, \lstinline!owt_krylov_distributed_benchmark!. \\
+\bottomrule
+\end{longtable}
+
+\lstinline!owt_krylov! is an \texttt{INTERFACE} library target (header-only); the
+CMake project only compiles anything when tests or benchmarks are
+enabled.
+
+\section{Build recipes}
+\label{sec:2.2}
+
+Serial:
+\begin{lstlisting}[style=bashstyle]
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
+\end{lstlisting}
+
+MPI:
+\begin{lstlisting}[style=bashstyle]
+cmake -S . -B build-mpi -DOWT_KRYLOV_ENABLE_MPI=ON
+cmake --build build-mpi
+ctest --test-dir build-mpi --output-on-failure
+\end{lstlisting}
+
+PETSc (must use the same MPI implementation as the compiler and MPI
+target):
+\begin{lstlisting}[style=bashstyle]
+cmake -S . -B build-petsc \
+  -DOWT_KRYLOV_ENABLE_MPI=ON \
+  -DOWT_KRYLOV_ENABLE_PETSC=ON
+\end{lstlisting}
+
+GCRO-DR and OpenMP Target are explicit optional features:
+\begin{lstlisting}[style=bashstyle]
+cmake -S . -B build-advanced \
+  -DOWT_KRYLOV_ENABLE_LAPACK=ON \
+  -DOWT_KRYLOV_ENABLE_OPENMP_TARGET=ON
+\end{lstlisting}
+
+\section{Install and consume}
+\label{sec:2.3}
+
+\begin{lstlisting}[style=bashstyle]
+cmake --install build --prefix /desired/prefix
+\end{lstlisting}
+
+\begin{lstlisting}[style=cppstyle,language={}]
+find_package(OWTKrylov CONFIG REQUIRED)
+target_link_libraries(your_target PRIVATE OWT::Krylov)
+\end{lstlisting}
+
+Including everything:
+\begin{lstlisting}
+#include <owt/krylov/owt_krylov.hpp>
+\end{lstlisting}
+
+\texttt{owt\_krylov.hpp} aggregates every header listed in
+\secref{sec:16}. Individual headers can be included directly for a
+narrower dependency footprint (e.g.\ \texttt{specwave\_compat.hpp} alone
+does \emph{not} pull in \texttt{krylov\_solvers.hpp}, so a translation
+unit that only wants \lstinline!solve_specwave_native! still needs to include
+\texttt{krylov\_solvers.hpp} itself if it also calls \lstinline!gmres!/\lstinline!bicgstab!
+directly).
+
+% ===========================================================================
+\chapter{Core data structures}
+\label{sec:3}
+
+Everything in this chapter lives in \texttt{include/owt/krylov/core.hpp},
+\texttt{block\_csr.hpp}, \texttt{dense\_block\_csr.hpp},
+\texttt{split\_block\_csr.hpp}, and \texttt{distributed\_layout.hpp}.
+
+\section{The layout invariant}
+\label{sec:3.1}
+
+Every distributed container in OWT-Krylov follows one rule, stated in
+\texttt{core.hpp}'s own comment on \lstinline!BlockVector!: \textbf{owned nodes
+first, ghost nodes second, and a contiguous block per node.} For a
+vector with \lstinline!owned_nodes()! owned and \lstinline!ghost_nodes()! ghost nodes
+and \lstinline!block_size()! components per node:
+
+\begin{itemize}
+\item scalars $[0,\ \mathtt{owned\_size()})$ are the owned region
+  ($\mathtt{owned\_size()} = \mathtt{owned\_nodes()}\cdot\mathtt{block\_size()}$);
+\item scalars $[\mathtt{owned\_size()},\ \mathtt{local\_size()})$ are the ghost region.
+\end{itemize}
+
+Every BLAS-1 free function (\lstinline!axpy!, \lstinline!scale!, \lstinline!copy_owned!,
+\lstinline!assign_linear_combination!) and every dot/norm reduction operates on
+the \textbf{owned region only} --- ghosts are never summed into a
+reduction, since each value is owned by exactly one rank globally.
+Halo/ghost updates are always a separate, explicit step (a
+\lstinline!Halo! policy's \lstinline!exchange!, or \lstinline!begin!/\lstinline!end!), never implicit
+inside a BLAS-1 call.
+
+\section{\texorpdfstring{\lstinline!BlockVector<T>!}{BlockVector<T>}}
+\label{sec:3.2}
+
+\texttt{core.hpp}. \texttt{T} is \lstinline!std::floating_point!.
+
+\begin{lstlisting}
+BlockVector();                                                   // empty
+BlockVector(std::size_t owned_nodes, std::size_t ghost_nodes,
+            std::size_t block_size, T initial_value = T(0));     // owning
+static BlockVector view(std::size_t owned_nodes, std::size_t ghost_nodes,
+                         std::size_t block_size, std::span<T> values); // non-owning
+\end{lstlisting}
+
+\lstinline!owned_nodes == 0! and \lstinline!block_size == 0! are rejected
+(\lstinline!std::invalid_argument!); \lstinline!ghost_nodes == 0! is allowed.
+\lstinline!view()! requires \lstinline!values.size() == (owned_nodes+ghost_nodes)*block_size!
+exactly.
+
+Copying an \textbf{owning} vector deep-copies; copying a \textbf{view}
+produces another view of the same underlying storage. The caller of
+\lstinline!view()! must keep the wrapped storage alive and at a fixed address
+for the view's lifetime.
+
+Key accessors: \lstinline!owned_nodes()!, \lstinline!ghost_nodes()!, \lstinline!local_nodes()!,
+\lstinline!block_size()!, \lstinline!owned_size()!, \lstinline!local_size()!, \lstinline!owns_memory()!,
+\lstinline!data()!, \lstinline!owned()!/\lstinline!ghosts()! (spans), \lstinline!node(local_index)! (span
+of one node's block, throws \lstinline!std::out_of_range! if
+\lstinline!local_index >= local_nodes()!), \lstinline!fill_owned!, \lstinline!fill!,
+\lstinline!clone_layout()! (new owning vector, same shape, independent
+storage), \lstinline!same_layout(other)! (compares \lstinline!owned_nodes!/\lstinline!ghost_nodes!/
+\lstinline!block_size! only).
+
+Free functions (all throw \lstinline!std::invalid_argument! on a layout
+mismatch, all owned-region-only):
+
+\begin{lstlisting}
+void copy_owned(const BlockVector<T>& source, BlockVector<T>& destination);
+void axpy(T alpha, const BlockVector<T>& x, BlockVector<T>& y);           // y += alpha*x
+void scale(T alpha, BlockVector<T>& x);                                  // x *= alpha
+void assign_linear_combination(BlockVector<T>& out, T alpha,
+                                const BlockVector<T>& x, T beta,
+                                const BlockVector<T>& y);                 // out = alpha*x + beta*y
+\end{lstlisting}
+
+No thread-safety mechanism exists anywhere in this type; nothing here is
+safe for concurrent mutation.
+
+\section{\texorpdfstring{\lstinline!DistributedLayout!}{DistributedLayout}}
+\label{sec:3.3}
+
+\texttt{distributed\_layout.hpp}. Not templated on a scalar type --- pure
+bookkeeping supplied by an unstructured mesh partitioner, describing node
+ownership. It has no code-level coupling to \lstinline!BlockVector!/\lstinline!BlockCsrMatrix!
+--- the caller is responsible for keeping a \lstinline!DistributedLayout!'s node
+counts consistent with whatever \lstinline!BlockVector!/matrix it is used
+alongside.
+
+\begin{lstlisting}
+using global_index_type = std::uint64_t;
+DistributedLayout(global_index_type global_nodes, std::size_t block_size,
+                   std::vector<global_index_type> owned_global_nodes,
+                   std::vector<global_index_type> ghost_global_nodes,
+                   std::vector<int> ghost_owners,
+                   std::vector<global_index_type> algebraic_local_to_global_nodes);
+\end{lstlisting}
+
+Immutable after construction (every accessor \lstinline!const!, no setters).
+Validated at construction: \lstinline!global_nodes != 0!, \lstinline!block_size != 0!,
+\lstinline!owned_global_nodes! non-empty; \lstinline!ghost_global_nodes.size() == ghost_owners.size()!;
+\lstinline!algebraic_local_to_global_nodes.size() == owned_global_nodes.size() + ghost_global_nodes.size()!;
+every owned/ghost global id $<$ \lstinline!global_nodes! and unique across
+owned+ghost together; every \lstinline!algebraic_local_to_global_nodes! entry
+$<$ \lstinline!global_nodes! and unique \emph{within that array} (checked with a
+separate uniqueness set --- see \secref{sec:14} for what this does
+\textbf{not} cross-check).
+
+Accessors: \lstinline!global_nodes()!, \lstinline!block_size()!, \lstinline!owned_nodes()!,
+\lstinline!ghost_nodes()!, \lstinline!owned_global_nodes()!, \lstinline!ghost_global_nodes()!,
+\lstinline!ghost_owners()! (parallel array to \lstinline!ghost_global_nodes()!, the
+owning rank of each ghost --- meaning otherwise opaque to this header),
+\lstinline!algebraic_local_to_global_nodes()!.
+
+\section{Matrix storage: three forms}
+\label{sec:3.4}
+
+All three share the same layout invariant (owned rows, ghost columns
+permitted) and the same \lstinline!apply!/\lstinline!apply_rows! contract, but store
+block couplings differently. Pick based on whether a node's
+\lstinline!block_size()! components couple to each other, and whether the
+application already owns the numeric arrays in a particular layout.
+
+\begin{longtable}{L{0.28\textwidth}P{0.30\textwidth}C{0.14\textwidth}P{0.18\textwidth}}
+\toprule
+Type & Per-entry storage & Owning or view & SIMD path \\
+\midrule
+\endhead
+BlockCsrMatrix<T,Index> & \lstinline!block_size! diagonal scalars (component-diagonal --- no cross-component coupling within an entry) & Both (owning ctor and \lstinline!view()!) & \lstinline!simd::fused_multiply_add! \\
+DenseBlockCsrMatrix<T,Index> & full \lstinline!block_size x block_size! row-major dense block & Both & Plain nested loops --- no SIMD; $O(\mathit{block\_size}^2)$ per entry vs.\ $O(\mathit{block\_size})$ for \lstinline!BlockCsrMatrix! \\
+SplitBlockCsrMatrixView<T,Index> & diagonal array \lstinline![owned node][component]! + separate off-diagonal CSR \lstinline![edge][component]! & View-only, always non-owning; \lstinline!diagonal!/\lstinline!off_diagonal! are \lstinline!const! spans (mutated only by the application directly) & \lstinline!simd::fused_multiply_add! \\
+\bottomrule
+\end{longtable}
+
+\lstinline!BlockCsrMatrix! is the general-purpose type (used throughout the
+examples in \secref{sec:11}). \lstinline!DenseBlockCsrMatrix! is for genuinely
+block-coupled DOFs (e.g.\ tightly-coupled multi-physics unknowns at a
+node). \lstinline!SplitBlockCsrMatrixView! exists specifically to borrow
+SpecWave's native array layout --- separate diagonal and edge-coefficient
+arrays --- with the structural arrays (row offsets, columns) cached once
+while both numeric arrays continue to point directly at
+application-owned storage; mutating the application's arrays is
+immediately visible on the next \lstinline!apply()!, no re-registration
+needed.
+
+All three throw \lstinline!std::invalid_argument! from their constructor/\lstinline!view()!
+on a structural violation (missing/mismatched-size row offsets,
+non-monotone offsets, an out-of-range column index) and from every
+\lstinline!apply!/\lstinline!apply_rows! on a vector/matrix layout mismatch
+(\lstinline!owned_nodes!/\lstinline!ghost_nodes!/\lstinline!block_size! must agree exactly).
+\lstinline!BlockCsrMatrix::diagonal()! throws if a row has no self-loop entry;
+\lstinline!SplitBlockCsrMatrixView::diagonal()! cannot fail this way because the
+diagonal is stored directly, not searched for.
+
+Every matrix precomputes \lstinline!interior_rows()! (owned rows whose entries
+never touch a ghost column) and \lstinline!boundary_rows()! (owned rows with at
+least one ghost-column entry) at construction --- the partition used
+throughout the library to overlap communication with computation (see
+\secref{sec:4.2} and the asynchronous Gauss--Seidel discussion in
+\secref{sec:6.5}).
+
+\subsection*{Minimal construction}
+\begin{lstlisting}
+BlockCsrMatrix<double> matrix(
+    /*owned_nodes=*/3, /*ghost_nodes=*/0, /*block_size=*/2,
+    /*row_offsets=*/   {0, 2, 5, 7},
+    /*column_indices=*/{0, 1, 0, 1, 2, 1, 2},
+    /*values=*/         {/* block_size scalars per entry, in entry order */});
+\end{lstlisting}
+
+\lstinline!row_offsets.size() == owned_nodes+1!, \lstinline!column_indices.size() == row_offsets.back()!,
+\lstinline!values.size() == column_indices.size()*block_size! (component-diagonal
+form) or \lstinline!column_indices.size()*block_size*block_size! (\lstinline!DenseBlockCsrMatrix!,
+row-major per entry).
+
+\section{Composite operators}
+\label{sec:3.5}
+
+\texttt{block\_csr.hpp} also defines:
+
+\begin{lstlisting}
+struct NoHaloExchange { /* every method is a no-op */ };
+
+template<class Matrix, class Halo = NoHaloExchange>
+class DistributedBlockOperator {
+    DistributedBlockOperator(Matrix matrix, Halo halo = {});
+    template<std::floating_point T> void apply(BlockVector<T>&, BlockVector<T>&);
+};
+\end{lstlisting}
+
+\lstinline!apply! calls \lstinline!halo_.exchange(input)! \textbf{then}
+\lstinline!matrix_.apply(input, output)!. With the default \lstinline!NoHaloExchange!,
+this performs \textbf{no ghost update} --- a genuinely distributed use
+requires supplying a real \lstinline!Halo! (see \lstinline!MpiHaloExchange! in
+\secref{sec:8}). A deduction guide lets \lstinline!DistributedBlockOperator(matrix)!
+bind the matrix by reference (not copy) when given an lvalue.
+
+\texttt{mpi\_halo.hpp}'s \lstinline!OverlappedDistributedBlockOperator<Matrix, Halo>!
+is the communication/computation-overlapping counterpart --- see
+\secref{sec:8.2}.
+
+% ===========================================================================
+\chapter{Execution and low-level kernels}
+\label{sec:4}
+
+\section{SIMD kernels}
+\label{sec:4.1}
+
+\texttt{simd.hpp} (\lstinline!owt::krylov::simd!). Two free functions, both
+\lstinline!noexcept!, no bounds checking:
+
+\begin{lstlisting}
+template<std::floating_point T>
+void fused_multiply_add(T* out, const T* coefficient, const T* input, std::size_t size);
+// out[i] += coefficient[i] * input[i]
+
+template<std::floating_point T>
+void axpy(T* out, T alpha, const T* input, std::size_t size);
+// out[i] += alpha * input[i]
+\end{lstlisting}
+
+Dispatch is \textbf{entirely compile-time}, in priority order
+\lstinline!__AVX512F__! $\to$ \lstinline!__AVX2__! $\to$
+\lstinline!__ARM_NEON!/\lstinline!__ARM_NEON__! $\to$ scalar remainder loop,
+each with a nested \lstinline!__FMA__! check to prefer true fused
+multiply-add over separate multiply+add. These are standard
+compiler-predefined ISA macros (set via \lstinline!-march=!/\lstinline!-mavx2!/\lstinline!-mfma!/target
+flags), \textbf{not} OWT CMake options --- nothing in \texttt{CMakeLists.txt}
+sets architecture flags automatically. A binary built with
+\lstinline!-mavx2! will \texttt{SIGILL} on a CPU lacking AVX2; a binary built
+with none of these flags always uses the scalar path regardless of the
+actual CPU. 32-bit ARM has no NEON double-precision path (falls through
+to scalar for \texttt{double}); AArch64 does.
+
+Practical note: \lstinline!fused_multiply_add! is called once per CSR entry
+with \lstinline!size = block_size()!. For small block sizes (3--9, typical for
+PDE systems) the vector width (4/8/16 lanes) may exceed \lstinline!size!, so
+the vectorized branch never executes and the whole call falls through to
+the scalar tail loop --- don't expect SIMD speedup here for small blocks.
+\lstinline!axpy! (called with \lstinline!size = owned_size()!, i.e.\ the whole
+vector) is where SIMD actually pays off.
+
+\section{Execution policies}
+\label{sec:4.2}
+
+\texttt{execution.hpp}. A policy selects \emph{how} the local SpMV of a
+block-CSR operator runs.
+
+\begin{lstlisting}
+struct HostExecutionPolicy {
+    template<class Matrix, std::floating_point T>
+    void apply(const Matrix&, const BlockVector<T>&, BlockVector<T>&) const; // forwards to matrix.apply
+    static constexpr const char* name() noexcept;               // "host"
+    static constexpr bool accelerator_available() noexcept;     // always false
+};
+
+#ifdef OWT_KRYLOV_ENABLE_OPENMP_TARGET
+struct OpenMPTargetExecutionPolicy {
+    static constexpr const char* name() noexcept;                // "openmp-target"
+    static bool accelerator_available() noexcept;                // omp_get_num_devices() > 0
+    // apply(BlockCsrMatrix<T,Index>, ...) and apply(SplitBlockCsrMatrixView<T,Index>, ...)
+    // reimplement the SpMV kernel with `omp target teams distribute parallel for collapse(2)`
+    // over (row, component) pairs -- does NOT call matrix.apply().
+};
+#endif
+\end{lstlisting}
+
+\lstinline!OpenMPTargetExecutionPolicy! supports exactly two matrix types
+(\lstinline!BlockCsrMatrix!, \lstinline!SplitBlockCsrMatrixView!) --- it is not
+generic like \lstinline!HostExecutionPolicy!. \textbf{Every call re-transfers
+the entire matrix and input vector to the device and copies the entire
+output back} --- there is no persistent device-resident state
+(\lstinline!target enter data!) in this header. Budget the transfer cost per
+\lstinline!apply()! call; the README's claim boundary is explicit that no GPU
+speed claim is made without device-resident workload measurements.
+
+\begin{lstlisting}
+template<class Matrix, class ExecutionPolicy = HostExecutionPolicy, class Halo = NoHaloExchange>
+class PolicyBlockOperator {
+    PolicyBlockOperator(Matrix& matrix, ExecutionPolicy = {}, Halo = {});
+    template<std::floating_point T> void apply(BlockVector<T>& input, BlockVector<T>& output);
+    ExecutionPolicy& execution_policy() noexcept;
+};
+\end{lstlisting}
+
+Holds a raw pointer to \lstinline!matrix! (caller keeps it alive); \lstinline!apply!
+always runs \lstinline!halo_.exchange(input)! before the local kernel (a no-op
+under the default \lstinline!NoHaloExchange!).
+
+\section{Node orderings}
+\label{sec:4.3}
+
+\texttt{ordering.hpp}. Four algorithms plus an inverse-permutation
+helper, all operating on the \textbf{local (owned-only) subgraph} ---
+ghost/off-rank columns are dropped before any of these run, so
+reordering is per-rank, never global.
+
+\begin{lstlisting}
+enum class NodeOrdering { identity, hilbert, reverse_cuthill_mckee,
+                           approximate_minimum_degree, nested_dissection };
+
+std::vector<std::size_t> reverse_cuthill_mckee_order(const BlockCsrMatrix<T,Index>&);
+std::vector<std::size_t> approximate_minimum_degree_order(const BlockCsrMatrix<T,Index>&);
+std::vector<std::size_t> nested_dissection_order(const BlockCsrMatrix<T,Index>&);
+std::vector<std::size_t> hilbert_order(std::span<const std::pair<double,double>> coordinates);
+std::vector<std::size_t> inverse_permutation(std::span<const std::size_t> new_to_old);
+\end{lstlisting}
+
+Every ordering function returns a \textbf{new-to-old} permutation
+(position = new index, value = old node index); \lstinline!inverse_permutation!
+converts to \textbf{old-to-new} and validates the input is a genuine
+permutation (throws \lstinline!std::invalid_argument! on an out-of-range or
+duplicate entry).
+
+\begin{itemize}
+\item RCM and Hilbert target cache/bandwidth locality (RCM via graph BFS
+  distance, Hilbert via geometric proximity --- \lstinline!hilbert_order! needs
+  externally supplied 2D coordinates, matching the matrix's local node
+  indexing; there is no 3D variant).
+\item \lstinline!approximate_minimum_degree_order! and \lstinline!nested_dissection_order!
+  target fill-in reduction for a factorization-based preconditioner.
+  \textbf{\lstinline!approximate_minimum_degree_order! is not the AMD
+  algorithm} despite the name --- it is a plain greedy minimum-degree
+  ordering with an $O(n)$ linear pivot scan per elimination step
+  ($O(n^2)$ total), not AMD's near-linear approximate-degree/quotient-graph
+  structure. Don't expect AMD-library scalability from it on large local
+  graphs.
+\item \lstinline!nested_dissection_order! recurses down to a leaf threshold of
+  8 nodes, falling back to a non-separating positional midpoint split
+  (empty separator) whenever a subgraph's BFS partition is degenerate
+  (e.g.\ disconnected) --- this weakens but doesn't break the ordering's
+  fill-reducing property in that case.
+\end{itemize}
+
+\textbf{No function anywhere in the library consumes a \lstinline!NodeOrdering!
+value.} The enum is a labeling vocabulary for callers to select which of
+the four standalone functions to call; there is no
+\lstinline!order(matrix, NodeOrdering::x)! dispatcher, and no solver or
+preconditioner in this repository applies a reordering automatically. If
+you want a reordered solve, you must permute the matrix/vectors yourself
+before constructing them and keep any halo metadata in sync --- this
+header provides no such synchronization.
+
+\section{Reduction policies}
+\label{sec:4.4}
+
+\texttt{reduction.hpp}. A reduction policy computes dot products, norms,
+and batched sums; every Krylov solver is templated on \lstinline!Reduction!
+(default \lstinline!SerialReduction<T>!) and calls
+\lstinline!dot!/\lstinline!norm!/\lstinline!sum!/\lstinline!begin_sum!/\lstinline!end! uniformly regardless
+of which policy is chosen. \textbf{This is the single knob that turns a
+solver from single-rank to MPI-distributed} --- no solver code changes,
+only the policy object passed in.
+
+\begin{longtable}{L{0.20\textwidth}P{0.13\textwidth}P{0.24\textwidth}P{0.30\textwidth}}
+\toprule
+Policy & Scope & Accumulation & Determinism \\
+\midrule
+\endhead
+SerialReduction<T> & Single rank & T, Kahan-compensated & Deterministic (fixed order) \\
+MixedPrecisionSerialReduction<T> & Single rank & \texttt{long double}, Kahan-compensated, narrowed to T at the end & Deterministic \\
+MpiReduction<T> & MPI, float/double only & \lstinline!MPI_Allreduce!/\lstinline!MPI_Iallreduce!, \lstinline!MPI_SUM! & \textbf{Not} bit-reproducible run-to-run (implementation-defined reduction tree order) \\
+MpiDeterministicReduction<T> & MPI & Gather to rank 0, sum in strict rank order (Kahan), broadcast & Reproducible for a \textbf{fixed rank count and rank/data mapping}; not partition-independent. \lstinline!begin_sum! is blocking despite the name --- don't use it to measure pipelined-algorithm performance. Verification tool, not a production path. \\
+MpiMixedPrecisionReduction<T> & MPI, float/double only & Local dot in \texttt{long double} (via \lstinline!MixedPrecisionSerialReduction!), then \lstinline!MPI_Allreduce! in \texttt{double}, narrowed to T & Same non-reproducibility caveat as \lstinline!MpiReduction! \\
+\bottomrule
+\end{longtable}
+
+Every \lstinline!dot!/\lstinline!local_dot! sums the \textbf{owned range only}, across
+every policy --- this is the same layout-invariant rule as
+\secref{sec:3.1}. \lstinline!MPI_Init! must already have been called; the
+header defensively defines \lstinline!OMPI_SKIP_MPICXX! before including
+\lstinline!<mpi.h>! to avoid pulling in Open MPI's deprecated C++ bindings.
+
+\lstinline!begin_sum!/\lstinline!end! are a matched async pair for overlapping
+communication with computation. Only \lstinline!MpiReduction! and
+\lstinline!MpiMixedPrecisionReduction! are genuinely non-blocking
+(\lstinline!MPI_Iallreduce!); the others implement \lstinline!begin_sum! as an eager,
+blocking call to \lstinline!sum! --- callers relying on true overlap must pick
+one of the two MPI-async policies, not assume the interface shape
+implies asynchrony.
+
+% ===========================================================================
+\chapter{Solving linear systems: the Krylov API}
+\label{sec:5}
+
+Headers: \texttt{krylov\_solvers.hpp} (GMRES/FGMRES, standard BiCGSTAB),
+\texttt{pipelined\_bicgstab.hpp} (two communication-hiding BiCGSTAB
+variants), \texttt{idrs.hpp} (IDR(s)), \texttt{gcrodr.hpp} +
+\texttt{recycling.hpp} (GCRO-DR / augmented FGMRES).
+
+\section{The common contract}
+\label{sec:5.1}
+
+Every solver entry point is a free function in \lstinline!owt::krylov!,
+templated on:
+
+\begin{lstlisting}
+template<std::floating_point T, class Operator,
+         class Preconditioner = IdentityPreconditioner,
+         class Reduction = SerialReduction<T>>
+SolverResult<T> solver_name(Operator& linear_operator, const BlockVector<T>& rhs,
+                             BlockVector<T>& solution, const SolverOptions<T>& options = {},
+                             Preconditioner&& preconditioner = Preconditioner{},
+                             Reduction reduction = {}, /* solver-specific extras */);
+\end{lstlisting}
+
+\lstinline!Operator! must expose \lstinline!void apply(BlockVector<T>&, BlockVector<T>&)!.
+\lstinline!Preconditioner! must expose
+\lstinline!void apply(const BlockVector<T>&, BlockVector<T>&)!. Both are
+duck-typed --- no C++ concept enforces the shape.
+
+\textbf{All solves are right/flexible-preconditioned.} The operator is
+always applied to a \emph{preconditioned} direction, never the reverse;
+there is no left-preconditioning path anywhere in the library. This is
+also exactly what makes \lstinline!gmres()! and \lstinline!fgmres()! the same code
+(\secref{sec:5.4}): a fixed preconditioner gives ordinary
+right-preconditioned GMRES, a preconditioner that changes state between
+calls gives FGMRES.
+
+\lstinline!solution! must be pre-filled by the caller with the initial guess
+--- every solver's first act is computing the true initial residual
+$\mathtt{rhs} - A x_0$. \lstinline!rhs!/\lstinline!solution! must \lstinline!same_layout()!; if not
+(or if \lstinline!options! fails \lstinline!valid_options()!, or \lstinline!restart==0! for
+GMRES/FGMRES), the solver returns immediately with a
+default-constructed \lstinline!SolverResult<T>! (\lstinline!status == invalid_input!)
+without touching \lstinline!solution!.
+
+\section{\texorpdfstring{\lstinline!SolverOptions<T>!}{SolverOptions<T>}}
+\label{sec:5.2}
+
+\texttt{core.hpp}.
+
+\begin{longtable}{L{0.30\textwidth}C{0.10\textwidth}P{0.50\textwidth}}
+\toprule
+Field & Default & Meaning \\
+\midrule
+\endhead
+relative\_tolerance & 1e-8 & $\mathit{threshold} = \max(\mathit{absolute\_tolerance},\ \mathit{relative\_tolerance}\cdot\max(\|\mathtt{rhs}\|,1))$ \\
+absolute\_tolerance & 0 & Floor added to the threshold above \\
+breakdown\_tolerance & $64\cdot\mathrm{eps}(T)$ & Generic near-singularity threshold (Arnoldi rank loss, GMRES triangular pivots, BiCGSTAB $\omega$ collapse, IDR dense-system pivots, \ldots) \\
+maximum\_iterations & 1000 & Hard cap; exceeding it returns \lstinline!status = maximum_iterations! \\
+convergence\_check\_interval & 10 & \lstinline!bicgstab! only: how often the recursive residual is checked/replaced by the true residual \\
+restart & 30 & GMRES/FGMRES restart cycle length $m$. 0 makes \lstinline!fgmres! return immediately (no-op guard) \\
+residual\_replacement\_interval & 50 & Iteration interval forcing a true-residual recompute + hard restart in the BiCGSTAB family. 0 disables it. \textbf{Not read by \lstinline!idrs()!.} \\
+idr\_shadow\_space & 4 & IDR(s) shadow-space dimension $s$, used only by \lstinline!idrs()! \\
+relaxation & 1 & \textbf{Not read anywhere in the solver headers} --- dead field as far as \texttt{krylov\_solvers.hpp}/\texttt{pipelined\_bicgstab.hpp}/\texttt{idrs.hpp}/\texttt{gcrodr.hpp}/\texttt{recycling.hpp} are concerned (see \secref{sec:14}; it \emph{is} read by \texttt{stationary.hpp}'s \lstinline!jacobi()!) \\
+verify\_true\_residual & true & Not branched on inside the solvers reviewed here --- true-residual verification happens unconditionally at every prospective-convergence point regardless of this flag \\
+collect\_timings & false & When true, allocates \lstinline!result.timings! and records wall-clock solve time \\
+gmres\_orthogonalization & iterated\_classical\_gram\_schmidt & See \secref{sec:5.4} \\
+\bottomrule
+\end{longtable}
+
+\lstinline!valid_options()! requires all three tolerances finite,
+\lstinline!relative_tolerance/absolute_tolerance >= 0!, \lstinline!breakdown_tolerance > 0!,
+\lstinline!maximum_iterations > 0!, \lstinline!convergence_check_interval > 0!. It
+does \textbf{not} validate \lstinline!restart!, \lstinline!idr_shadow_space!, or
+\lstinline!relaxation!.
+
+\section{\texorpdfstring{\lstinline!SolverResult<T>!, \lstinline!SolverStatus!, \lstinline!BreakdownReason!}{SolverResult<T>, SolverStatus, BreakdownReason}}
+\label{sec:5.3}
+
+\begin{lstlisting}
+enum class SolverStatus { converged, maximum_iterations, breakdown, diverged, invalid_input };
+
+struct SolverResult<T> {
+    SolverStatus status = invalid_input;
+    BreakdownReason breakdown_reason = none;
+    std::size_t iterations = 0;
+    std::size_t operator_applications = 0;
+    std::size_t preconditioner_applications = 0;
+    std::size_t global_reductions = 0;
+    std::size_t reorthogonalizations = 0;         // FGMRES only
+    T initial_residual_norm, recursive_residual_norm, true_residual_norm, relative_residual_norm; // NaN by default
+    std::shared_ptr<SolverTimings<T>> timings;    // non-null only if collect_timings
+    bool converged() const noexcept;              // status == converged
+    double solve_seconds() const noexcept;        // 0 if timings == nullptr
+};
+\end{lstlisting}
+
+\lstinline!global_reductions! is the metric behind every ``N-sync''/``N-reduction''
+claim in this manual --- it counts every \lstinline!dot!/\lstinline!norm!/\lstinline!sum!/\lstinline!begin_sum!-\lstinline!end!
+pair. \lstinline!recursive_residual_norm! is the algorithm's cheap
+formula-derived estimate; \lstinline!true_residual_norm! is $\|\mathtt{rhs} - Ax\|$
+recomputed explicitly whenever a convergence/breakdown decision needs
+it. Final convergence is always decided by the true residual, never the
+recursive estimate alone.
+
+\lstinline!BreakdownReason! (meaningful only when \lstinline!status == breakdown!):
+
+\begin{longtable}{L{0.28\textwidth}P{0.62\textwidth}}
+\toprule
+Reason & Trigger \\
+\midrule
+\endhead
+arnoldi\_invariant\_subspace & FGMRES: Arnoldi produced a near-zero subdiagonal/Givens denominator and the cycle didn't also converge \\
+singular\_projected\_system & FGMRES: back-substitution hit a near-zero triangular pivot \\
+biorthogonality\_loss & BiCGSTAB family: shadow-residual dot $\rho$ collapsed \\
+alpha\_denominator & BiCGSTAB family: $\alpha$'s denominator collapsed \\
+omega\_denominator / omega\_zero & BiCGSTAB/IDR: $\omega$'s denominator or the resulting $\omega$ collapsed \\
+idr\_shadow\_space & \lstinline!idrs()!: shadow-space construction/orthonormalization failed \\
+idr\_small\_system & \lstinline!idrs()!: the $s\times s$ moment-matrix solve was singular and shadow-space restart was already retried more than twice \\
+non\_finite\_scalar & Any of the above checks found NaN/Inf rather than merely a tiny value \\
+\bottomrule
+\end{longtable}
+
+Several BiCGSTAB-family breakdown paths first check for a \textbf{happy
+breakdown} --- the current update already drove the residual under
+threshold --- and report \lstinline!converged!/\lstinline!diverged! instead of
+\lstinline!breakdown! in that case.
+
+\section{GMRES and FGMRES}
+\label{sec:5.4}
+
+\texttt{krylov\_solvers.hpp}.
+
+\begin{lstlisting}
+SolverResult<T> fgmres(Operator&, const BlockVector<T>& rhs, BlockVector<T>& solution,
+                       const SolverOptions<T>& options = {},
+                       Preconditioner&& preconditioner = Preconditioner{},
+                       Reduction reduction = {},
+                       SolverWorkspace<T>* supplied_workspace = nullptr,
+                       ArnoldiSnapshot<T>* arnoldi_snapshot = nullptr);
+
+SolverResult<T> gmres(/* same signature, no arnoldi_snapshot parameter */);
+\end{lstlisting}
+
+\lstinline!gmres()! is a thin forwarding wrapper over \lstinline!fgmres()! ---
+algorithmically identical code; the distinction is purely whether the
+caller's \lstinline!Preconditioner::apply! changes state between calls.
+\lstinline!*_with_workspace! overloads take a required \lstinline!SolverWorkspace<T>&!
+instead of the trailing pointer.
+
+Restarted Arnoldi with a workspace sized for \lstinline!restart+1! basis
+vectors. Orthogonalization is classical Gram-Schmidt, structured as one
+batched reduction combining the Hessenberg column and the
+pre-projection norm squared, plus a conditional second reduction
+controlled by \lstinline!gmres_orthogonalization!:
+
+\begin{longtable}{L{0.34\textwidth}P{0.56\textwidth}}
+\toprule
+Enumerator & Behavior \\
+\midrule
+\endhead
+iterated\_classical\_gram\_schmidt & Second reduction spent \textbf{every} column --- two-sync CGS2, most robust, the default \\
+adaptive\_classical\_gram\_schmidt & Second reduction spent only when the Daniel--Gragg--Kaufman--Stewart norm-loss test trips ($\mathit{projected\_norm}^2 \leq 0$ or $< 0.5\cdot\mathit{original\_norm}^2$) \\
+one\_synchronization\_classical\_gram\_schmidt & Second reduction never spent --- exact one-sync CGS, one reduction per column \\
+\bottomrule
+\end{longtable}
+
+The true residual is recomputed after every restart cycle; only that
+value decides overall convergence. If \lstinline!arnoldi_snapshot! is
+non-null, it is populated with the unrotated Hessenberg matrix and
+preconditioned Krylov basis of the most recently completed cycle ---
+this is the exact state \lstinline!gcrodr()!'s harmonic-Ritz extraction
+consumes (\secref{sec:5.7}).
+
+\section{The BiCGSTAB family}
+\label{sec:5.5}
+
+Three implementations with the same \lstinline!SolverOptions!/\lstinline!SolverResult!
+contract and the same \lstinline!*_stable! (forces
+\lstinline!MixedPrecisionSerialReduction<T>!), \lstinline!*_residual_replacement(interval)!,
+\lstinline!*_mixed_precision!, \lstinline!*_with_workspace! wrapper naming convention
+--- switching between them is a drop-in replacement at the call site.
+
+\begin{longtable}{L{0.20\textwidth}L{0.16\textwidth}C{0.10\textwidth}C{0.10\textwidth}P{0.30\textwidth}}
+\toprule
+Function & Header & Workspace & Reductions/iter & Distinguishing mechanism \\
+\midrule
+\endhead
+bicgstab & krylov\_solvers.hpp & 9 vectors & 4 & Classical van der Vorst recurrence, fully synchronous, no fusing. The four reductions are $\rho$, $\alpha$-denominator, $\omega$-numerator, $\omega$-denominator, as separate calls. \\
+pipelined\_bicgstab & pipelined\_bicgstab.hpp & 9 vectors & 3 & SpecWave legacy solver 12 port. Independent dot products fused into batched reductions; the next iteration's $\{\rho,\ \mathrm{residual\ norm}\}$ reduction is dispatched via \lstinline!begin_sum! early, with an explicit overlap comment: \emph{``A distributed operator may update solution ghosts here without changing the recurrence.''} \\
+communication\_hiding\_bicgstab & pipelined\_bicgstab.hpp & 16 vectors & 2, each overlapped with a concurrent preconditioner+operator application & The PETSc/Cools 15-vector recurrence (legacy solver 15). Precomputes next-iteration search directions \textbf{during} each in-flight reduction, not just alongside the caller's own halo exchange. \\
+\bottomrule
+\end{longtable}
+
+Choosing between them: use \lstinline!bicgstab! when there is no MPI latency
+to hide or simplicity/debuggability matters most. Use
+\lstinline!pipelined_bicgstab! when the \lstinline!Operator!'s own halo exchange can
+overlap with an async \lstinline!MpiReduction! policy. Use
+\lstinline!communication_hiding_bicgstab! when preconditioner/operator cost is
+comparable to or larger than reduction latency, so overlapping a
+reduction with a full apply is worthwhile --- largest workspace, deepest
+hiding, most complex recurrence.
+
+Real overlap in \lstinline!pipelined_bicgstab!/\lstinline!communication_hiding_bicgstab!
+only materializes with an async \lstinline!Reduction! (\lstinline!MpiReduction<T>! or
+\lstinline!MpiMixedPrecisionReduction<T>!); under \lstinline!SerialReduction<T>!,
+\lstinline!begin_sum! is blocking and the ``fusing'' only reduces reduction
+\emph{count}, not latency.
+
+\lstinline!bicgstab_residual_replacement(interval)! in
+\texttt{pipelined\_bicgstab.hpp} hardcodes \lstinline!SerialReduction<T>!
+internally, ignoring any caller reduction preference --- unlike the
+plain-\lstinline!bicgstab! residual-replacement wrapper, which forwards the
+caller's \lstinline!Reduction! choice.
+
+\section{IDR(s)}
+\label{sec:5.6}
+
+\texttt{idrs.hpp}.
+
+\begin{lstlisting}
+SolverResult<T> idrs(Operator&, const BlockVector<T>& rhs, BlockVector<T>& solution,
+                      const SolverOptions<T>& options = {},
+                      Preconditioner&& preconditioner = Preconditioner{},
+                      Reduction reduction = {});
+\end{lstlisting}
+
+$s = \mathtt{options.idr\_shadow\_space}$ (default 4). $s=0$ or
+$s > \mathtt{rhs.owned\_size()}$ returns \lstinline!invalid_input! immediately.
+
+\textbf{$s=1$ calls \lstinline!bicgstab()! directly and returns its result
+verbatim} --- the code comment: \emph{``IDR(1) is mathematically
+BiCGSTAB. Use the already guarded BiCGSTAB recurrence instead of the
+less robust cyclic small-system formulation.''} This is not merely a
+mathematical equivalence claim; it is literally a redirect to the more
+numerically hardened implementation.
+
+For $s \geq 2$: shadow space is initialized by normalizing the initial
+residual into $\mathtt{shadow[0]}$, then filling $\mathtt{shadow[1..s-1]}$
+with a deterministic xorshift64*-seeded pseudo-random fill, classically
+Gram-Schmidt-orthonormalized. An initial $s$-step minimum-residual
+(Richardson) phase establishes the first
+\lstinline!delta_residual!/\lstinline!delta_solution! vectors, then the main cyclic
+loop solves a dense $s\times s$ moment system each inner step via
+Gaussian elimination with partial pivoting; a singular moment system
+triggers up to two shadow-space restarts (labeled in-code as
+\emph{``SpecWave's numerical restart''}) before reporting
+\lstinline!idr_small_system! breakdown.
+
+\lstinline!idrs! has \textbf{no \lstinline!SolverWorkspace! overload} (always
+allocates its own vectors locally) and \textbf{no \lstinline!*_stable!/\lstinline!*_mixed_precision!/\lstinline!*_residual_replacement!
+wrappers} --- precision control is purely via the \lstinline!Reduction!
+template argument passed directly, and
+\lstinline!options.residual_replacement_interval! has no effect on \lstinline!idrs()!
+at all. It is also not communication-hiding/fused like the BiCGSTAB
+variants --- a straightforward serial-reduction translation of
+SpecWave's cyclic algorithm, costing multiple \lstinline!dot!/\lstinline!norm! calls
+per inner step.
+
+\section{Recycling and GCRO-DR}
+\label{sec:5.7}
+
+\texttt{recycling.hpp} (generic recycle infrastructure, no build flag)
+and \texttt{gcrodr.hpp} (harmonic-Ritz specialization, requires
+\lstinline!OWT_KRYLOV_ENABLE_LAPACK!).
+
+\begin{lstlisting}
+template<std::floating_point T>
+class RecycleSpace {
+    explicit RecycleSpace(std::size_t maximum_vectors);   // throws if 0
+    std::size_t size() const noexcept; std::size_t capacity() const noexcept;
+    const BlockVector<T>& vector(std::size_t index) const;  // U_i
+    const BlockVector<T>& image(std::size_t index) const;   // C_i = A*U_i, kept globally orthonormal
+
+    template<class Operator, class Reduction>
+    bool add_candidate(Operator&, const BlockVector<T>& candidate, Reduction&,
+                        SolverResult<T>* telemetry = nullptr,
+                        T dependence_tolerance = 128*eps);   // false if numerically dependent
+
+    template<class Reduction>
+    void project_initial_guess(const BlockVector<T>& residual, BlockVector<T>& solution,
+                                Reduction&, SolverResult<T>* telemetry = nullptr); // x += U*C^T*r
+};
+\end{lstlisting}
+
+$U$ (search directions) and $C = A\,U$ (kept $A$-orthonormal to each
+other) are publicly exposed precisely so an application can inject
+deflation vectors from outside knowledge, not just whatever
+\lstinline!add_candidate!'s default policy would choose. Storage is a bounded
+FIFO --- adding past \lstinline!maximum_vectors! evicts the oldest pair.
+
+\begin{lstlisting}
+SolverResult<T> recycled_fgmres(Operator&, const BlockVector<T>& rhs, BlockVector<T>& solution,
+                                 RecycleSpace<T>& recycle_space, const SolverOptions<T>& options = {},
+                                 Preconditioner&& preconditioner = Preconditioner{}, Reduction reduction = {},
+                                 bool update_recycle_space = true,
+                                 SolverWorkspace<T>* workspace = nullptr,
+                                 ArnoldiSnapshot<T>* arnoldi_snapshot = nullptr);
+\end{lstlisting}
+
+Augmented FGMRES for a sequence of related systems: projects the
+initial guess against any existing \lstinline!recycle_space! before solving,
+wraps the operator/preconditioner so every Arnoldi direction stays
+deflated against $C$ at the cost of no \emph{extra} operator
+applications on the FGMRES hot path (deflation is folded into the same
+apply via a one-shot memoization between the wrapped operator and
+preconditioner). If \lstinline!update_recycle_space! (default \lstinline!true!) and the
+solve converges, the solution correction is appended as a new recycle
+candidate.
+
+\begin{lstlisting}
+std::size_t extract_harmonic_ritz(Operator&, const ArnoldiSnapshot<T>& snapshot,
+                                   RecycleSpace<T>& recycle_space, Reduction&,
+                                   SolverResult<T>* telemetry = nullptr);
+
+SolverResult<T> gcrodr(Operator&, const BlockVector<T>& rhs, BlockVector<T>& solution,
+                        RecycleSpace<T>& recycle_space, const SolverOptions<T>& options = {},
+                        Preconditioner&& preconditioner = Preconditioner{}, Reduction reduction = {},
+                        SolverWorkspace<T>* workspace = nullptr,
+                        ArnoldiSnapshot<T>* supplied_snapshot = nullptr);
+\end{lstlisting}
+
+\lstinline!gcrodr()! calls
+\lstinline!recycled_fgmres(..., update_recycle_space=false, ...)!, then --- if
+the captured snapshot has any columns --- replaces \lstinline!recycle_space!
+with harmonic-Ritz vectors of the just-completed cycle via
+\lstinline!extract_harmonic_ritz!. The harmonic matrix is
+\[
+H_m + h_{m+1,m}^2\, H_m^{-T} e_m e_m^T,
+\]
+solved via LAPACK \lstinline!sgeev!/\lstinline!dgeev!; complex conjugate Ritz pairs
+contribute both their real and imaginary invariant-subspace directions;
+the smallest-magnitude eigenvalues are retained first (the textbook
+choice for deflating the slowest-converging directions).
+
+Use \lstinline!recycled_fgmres! directly when the default ``recycle the
+converged correction'' policy is enough (e.g.\ repeated similar
+right-hand sides against a fixed operator). Use \lstinline!gcrodr! when you
+want spectrally-informed deflation across genuinely related but not
+identical operators (e.g.\ successive Newton/time-step Jacobians).
+
+\section{Reusable workspaces}
+\label{sec:5.8}
+
+\lstinline!SolverWorkspace<T>! (\texttt{core.hpp}) holds a pool of
+\lstinline!BlockVector<T>! and a pool of scalars.
+\lstinline!prepare(layout, vector_count, scalar_count)! reallocates the
+\textbf{entire} vector pool if the layout changed or the pool is
+smaller than requested --- even growing \lstinline!vector_count! with an
+unchanged layout throws away and rebuilds the whole pool, invalidating
+any previously obtained references. \lstinline!allocation_epochs()! counts
+reallocation events, letting a caller confirm a workspace is being
+reused with zero allocation across repeated solves --- the main reason
+to pass a \lstinline!SolverWorkspace*! explicitly rather than let each call
+build (and destroy) its own.
+
+\lstinline!ArnoldiSnapshot<T>! (\texttt{core.hpp}) captures the unrotated
+Hessenberg matrix and preconditioned Krylov basis of the most recently
+completed FGMRES cycle --- see \secref{sec:5.4} and \secref{sec:5.7}.
+
+% ===========================================================================
+\chapter{Preconditioners}
+\label{sec:6}
+
+\texttt{preconditioner.hpp} (rank-local baselines + genuine RAS),
+\texttt{split\_block\_csr.hpp} (\lstinline!SplitLocalSsorPreconditioner!),
+\texttt{stationary.hpp} (full iterative solvers usable as smoothers),
+\texttt{overlap.hpp}/\texttt{overlap\_plan.hpp} (MPI overlap discovery
+feeding RAS).
+
+Two conventions recur across every preconditioner type:
+
+\begin{itemize}
+\item \textbf{\lstinline!apply(const BlockVector<T>&, BlockVector<T>&) const!}
+  is the universal contract --- duck-typed, no shared base class.
+  Anything with this signature plugs directly into any solver in
+  \secref{sec:5}.
+\item \textbf{Symbolic vs.\ numeric setup}: sparsity/size (``symbolic'')
+  state is fixed at construction; a coefficient-only refresh
+  (``numeric'') is a separate, explicitly-called method that
+  re-validates the pattern is unchanged and throws if it isn't ---
+  never silently rebuilds.
+\end{itemize}
+
+\section{Identity and Jacobi}
+\label{sec:6.1}
+
+\begin{lstlisting}
+struct IdentityPreconditioner { void apply(const BlockVector<T>&, BlockVector<T>&) const; }; // copy_owned, pass-through
+
+template<std::floating_point T>
+class JacobiPreconditioner {
+    template<class Matrix> explicit JacobiPreconditioner(const Matrix&, T minimum_diagonal = 64*eps);
+    void update_values(const Matrix&);    // re-validates layout, recomputes inverse diagonal
+    void apply(const BlockVector<T>&, BlockVector<T>&) const;
+    std::size_t numeric_updates() const noexcept;
+};
+\end{lstlisting}
+
+\lstinline!Matrix! must expose \lstinline!owned_nodes()!/\lstinline!ghost_nodes()!/\lstinline!block_size()!
+and \lstinline!diagonal() -> std::vector<T>! --- works with \lstinline!BlockCsrMatrix!
+or \lstinline!DenseBlockCsrMatrix!. Throws \lstinline!std::invalid_argument! if any
+diagonal entry is non-finite or $|\mathtt{value}| \leq \mathtt{minimum\_diagonal}$.
+
+\section{Local SSOR}
+\label{sec:6.2}
+
+Two independent implementations, one per matrix storage form.
+
+\begin{lstlisting}
+template<std::floating_point T, std::integral Index = std::size_t>
+class LocalSsorPreconditioner {   // block_csr.hpp companion, in preconditioner.hpp
+    explicit LocalSsorPreconditioner(const BlockCsrMatrix<T,Index>& matrix, T omega = T(1)); // 0<omega<2
+    void update_values();         // re-reads the diagonal through the stored matrix pointer
+    void apply(const BlockVector<T>&, BlockVector<T>&) const;
+};
+using RasSsorPreconditioner = LocalSsorPreconditioner<...>;  // compatibility alias, see Sec 14
+\end{lstlisting}
+
+Doc comment: \emph{``Zero-overlap rank-local SSOR. Off-rank/ghost
+entries are deliberately excluded from the triangular solves. This is
+the overlap-zero baseline for Schwarz methods; it is not an overlapping
+RAS preconditioner by itself.''} Both forward and backward sweeps
+unconditionally skip any $\mathtt{column} \geq \mathtt{owned\_nodes()}$
+--- that's the entire mechanism of ``zero overlap.''
+\lstinline!LocalSsorPreconditioner! stores a raw pointer to the matrix (must
+outlive it); \lstinline!update_values()! takes \textbf{no argument} (re-reads
+through the stored pointer) --- an asymmetry versus
+\lstinline!JacobiPreconditioner!/\lstinline!Ilu0Preconditioner!, whose
+\lstinline!update_values(matrix)! takes an explicit argument.
+
+\begin{lstlisting}
+template<std::floating_point T, std::integral Index = std::size_t>
+class SplitLocalSsorPreconditioner {   // split_block_csr.hpp
+    explicit SplitLocalSsorPreconditioner(const SplitBlockCsrMatrixView<T,Index>&, T omega = T(1));
+    void update_values(const SplitBlockCsrMatrixView<T,Index>&);
+    void apply(const BlockVector<T>&, BlockVector<T>&) const;
+};
+\end{lstlisting}
+
+Same zero-overlap SSOR sweep, adapted to the split diagonal/off-diagonal
+layout. Zero-copy: never copies the application's
+\lstinline!diagonal!/\lstinline!off_diagonal! arrays. Writes only \lstinline!output!'s owned
+region --- the ghost region is left whatever it was before the call.
+
+\section{ILU(0)}
+\label{sec:6.3}
+
+\begin{lstlisting}
+template<std::floating_point T, std::integral Index = std::size_t>
+class Ilu0Preconditioner {
+    explicit Ilu0Preconditioner(const BlockCsrMatrix<T,Index>& matrix);
+    void update_values(const BlockCsrMatrix<T,Index>& matrix);
+    void apply(const BlockVector<T>&, BlockVector<T>&) const;
+    std::size_t numeric_updates() const noexcept;
+};
+\end{lstlisting}
+
+``Rank-local block-Jacobi ILU(0), vectorized over every node
+component.'' Construction drops all ghost couplings
+($\mathtt{column} < \mathtt{owned\_nodes()}$ only) and records, per
+retained entry, where it came from in the caller's matrix --- this is
+the symbolic pattern. \lstinline!update_values(matrix)! re-checks that every
+row's local-entry count and every retained entry's source column are
+unchanged, throwing \lstinline!"ILU(0) sparsity pattern changed"! otherwise; a
+structurally different matrix requires a new \lstinline!Ilu0Preconditioner!,
+not a refresh. Factorization is genuine no-fill ILU(0) --- any
+elimination fill target not already in the pattern is silently
+dropped, never inserted. Throws
+\lstinline!std::runtime_error("zero pivot in ILU(0)")! on a pivot with
+magnitude $\leq 64\cdot\mathrm{eps}$.
+
+This is the internal local solver used by both RAS preconditioners
+below.
+
+\section{Restricted Additive Schwarz}
+\label{sec:6.4}
+
+Two variants: a one-shot depth-1 builder plus preconditioner
+(\texttt{overlap.hpp} + \texttt{preconditioner.hpp}), and an
+arbitrary-depth, cached version (\texttt{overlap\_plan.hpp}) for
+repeated numeric refresh on a fixed sparsity.
+
+\subsection*{Depth-1, uncached}
+
+\begin{lstlisting}
+struct DepthOneOverlap<T> { BlockCsrMatrix<T, std::size_t> matrix; std::vector<std::size_t> outer_local_nodes; };
+
+DepthOneOverlap<T> build_depth_one_overlap(MPI_Comm, const DistributedLayout&,
+                                            const BlockCsrMatrix<T,Index>& local_matrix);
+
+template<std::floating_point T, std::integral Index, class Halo>
+class RestrictedAdditiveSchwarzIlu0 {
+    RestrictedAdditiveSchwarzIlu0(const BlockVector<T>& outer_layout,
+                                   BlockCsrMatrix<T,Index> overlap_matrix,
+                                   std::vector<std::size_t> outer_local_nodes,
+                                   Halo& residual_halo, std::size_t overlap_depth);
+    void apply(const BlockVector<T>&, BlockVector<T>&) const;
+    BlockCsrMatrix<T,Index>& overlap_matrix();   // mutate coefficients directly, then:
+    void update_values();                        // re-factorize the internal Ilu0Preconditioner
+    std::size_t overlap_depth() const noexcept;   // pure metadata, never used algorithmically
+};
+\end{lstlisting}
+
+\lstinline!build_depth_one_overlap! is a full MPI collective: for every
+ghost node, it requests that node's complete owned CSR row from its
+owner (\lstinline!MPI_Alltoall!/\lstinline!MPI_Alltoallv!), then discards any received
+entry whose column falls outside this rank's own owned+ghost set ---
+the literal mechanism of ``restricted.'' Every call redoes the full
+exchange; there is no numeric-only fast path.
+
+\lstinline!RestrictedAdditiveSchwarzIlu0::apply!: refreshes ghosts on a
+synchronized copy of the residual via \lstinline!residual_halo.exchange!,
+gathers the local RHS via the \lstinline!outer_local_nodes! map
+(restriction), solves locally with an internal \lstinline!Ilu0Preconditioner!,
+then scatters the correction back \textbf{only for subdomain rows
+whose outer node is in the owned range} --- discarding corrections
+computed in the overlap region is the ``restricted'' in RAS. Updating
+coefficients is two manual steps: mutate \lstinline!overlap_matrix()!
+directly, then call \lstinline!update_values()!.
+
+\subsection*{Arbitrary depth, cached}
+
+\begin{lstlisting}
+template<std::floating_point T, std::integral Index = std::size_t>
+class DistributedOverlapPlan {
+    DistributedOverlapPlan(MPI_Comm, const DistributedLayout&,
+                            const BlockCsrMatrix<T,Index>& local_matrix, std::size_t depth); // depth >= 1
+    std::size_t depth() const; std::size_t subdomain_nodes() const;
+    const BlockCsrMatrix<T,std::size_t>& matrix() const;
+    void update_values(const BlockCsrMatrix<T,Index>& local_matrix);   // numeric-only, cached
+    void gather_residual(const BlockVector<T>& outer, BlockVector<T>& subdomain_rhs) const;
+};
+
+template<std::floating_point T, std::integral Index = std::size_t>
+class CachedRestrictedAdditiveSchwarzIlu0 {
+    CachedRestrictedAdditiveSchwarzIlu0(const BlockVector<T>& outer_layout, DistributedOverlapPlan<T,Index>& plan);
+    void apply(const BlockVector<T>&, BlockVector<T>&) const;
+    void update_values(const BlockCsrMatrix<T,Index>& local_matrix);  // plan.update_values() + re-factorize
+    std::size_t overlap_depth() const;
+};
+\end{lstlisting}
+
+\lstinline!DistributedOverlapPlan!'s constructor does the expensive one-time
+work: a frontier-based BFS over \lstinline!depth! graph layers (via
+\lstinline!MPI_Alltoall!/\lstinline!MPI_Alltoallv!), discovering exactly which ranks to
+talk to, how many entries, and which local slots to read/write --- then
+caches all of it. \lstinline!update_values()! afterward costs only local
+copies plus exactly \lstinline!depth! \lstinline!Alltoallv! calls per numeric refresh
+--- no id or structure exchange, no graph traversal. \lstinline!gather_residual()!
+uses a \textbf{separately pre-cached} one-round-trip schedule
+(\lstinline!Alltoallv! regardless of \lstinline!depth!) --- fetching a residual value
+only needs its owner directly, unlike coefficient exchange, which must
+walk outward layer by layer.
+
+\textbf{Overlap depth} = number of BFS layers imported beyond the outer
+ghost layer already present in \lstinline!DistributedLayout!. $\mathtt{depth}=1$
+is comparable in reach to \lstinline!build_depth_one_overlap! (not necessarily
+byte-identical); $\mathtt{depth}=2$ additionally imports rows for nodes
+newly discovered via depth-1 rows' off-rank columns; and so on. Larger
+depth generally improves RAS convergence at the cost of more
+per-update communication and a larger local ILU(0) subdomain. Pick the
+smallest depth that gives acceptable Krylov iteration counts.
+
+Prefer \lstinline!DistributedOverlapPlan! + \lstinline!CachedRestrictedAdditiveSchwarzIlu0!
+over \lstinline!build_depth_one_overlap! + \lstinline!RestrictedAdditiveSchwarzIlu0!
+whenever depth $>1$ is needed, or the same sparsity will be
+refactorized repeatedly (nonlinear iterations, time steps). A
+structural sparsity change still requires a new plan (and a new
+\lstinline!CachedRestrictedAdditiveSchwarzIlu0!) either way.
+
+\section{Stationary methods and smoothers}
+\label{sec:6.5}
+
+\texttt{stationary.hpp}. These are complete solvers (\lstinline!SolverResult<T>!,
+own convergence loop), not bare \lstinline!apply(input,output)! preconditioners
+--- they can be called standalone, or (in SpecWave's usage) as full
+solves for legacy solver IDs 0/1/2/16.
+
+\begin{lstlisting}
+std::vector<T> chebyshev_srj_schedule(std::size_t levels, T spectral_radius = 0.99);
+
+SolverResult<T> relaxed_jacobi(Operator&, rhs, solution, options, diagonal_preconditioner,
+                                std::span<const T> relaxation_schedule, reduction = {});
+SolverResult<T> jacobi(Operator&, rhs, solution, options, diagonal_preconditioner, reduction = {});
+SolverResult<T> chebyshev_srj(Operator&, rhs, solution, options, diagonal_preconditioner,
+                               std::size_t levels = 8, T spectral_radius = 0.99, reduction = {});
+
+SolverResult<T> gauss_seidel(BlockCsrMatrix<T,Index>&, Operator&, Halo&, rhs, solution, options, reduction = {});
+SolverResult<T> asynchronous_gauss_seidel(/* same signature */);
+SolverResult<T> anderson_jacobi(Operator&, rhs, solution, options, diagonal_preconditioner,
+                                 std::size_t period = 3, T mixing = T(1), reduction = {});
+\end{lstlisting}
+
+\begin{itemize}
+\item \lstinline!jacobi!/\lstinline!chebyshev_srj! both wrap \lstinline!relaxed_jacobi! with
+  a relaxation schedule (a single-element $\{\mathtt{options.relaxation}\}$
+  for plain Jacobi --- this is where \lstinline!SolverOptions::relaxation!
+  \emph{is} actually read, unlike in the Krylov solvers of
+  \secref{sec:5}; a Chebyshev-SRJ schedule for the other). The
+  schedule applies \textbf{cyclically}: \lstinline!maximum_iterations! should
+  ideally be a multiple of \lstinline!levels! to complete whole Chebyshev
+  cycles.
+\item \lstinline!gauss_seidel! is synchronous: \lstinline!halo.exchange(solution)!
+  blocks every iteration before a full forward sweep over all owned
+  rows.
+\item \lstinline!asynchronous_gauss_seidel! overlaps: \lstinline!halo.begin(solution)!
+  (non-blocking), update \lstinline!matrix.interior_rows()! while it's in
+  flight, \lstinline!halo.end(handle)!, then update \lstinline!matrix.boundary_rows()!.
+  This is the ``AsyncGS'' of the README/port matrix (legacy solver
+  16).
+\item \lstinline!anderson_jacobi! is SpecWave's type-I, depth-one Anderson
+  acceleration of Jacobi: every \lstinline!period!-th iteration (once one
+  prior fixed-point/defect pair exists), mixes the current and
+  previous fixed-point iterates with a coefficient
+  $\gamma = \langle f_k,\Delta f\rangle / \langle \Delta f,\Delta f\rangle$
+  clamped to $[-2,2]$, only when
+  $\langle \Delta f,\Delta f\rangle > \mathtt{breakdown\_tolerance}$.
+  \lstinline!period! controls how often mixing is attempted, not how much
+  history is kept --- depth is fixed at 1.
+\end{itemize}
+
+None of these functions are called by \lstinline!AggregationMultigrid!
+(\secref{sec:7.3}), which reimplements its own inline
+Jacobi/red-black-GS/Chebyshev smoother sweeps privately rather than
+reusing this header.
+
+% ===========================================================================
+\chapter{Coarse levels and multigrid}
+\label{sec:7}
+
+\texttt{coarse.hpp} (MPI-collective, gated on \lstinline!OWT_KRYLOV_ENABLE_MPI!),
+\texttt{multigrid.hpp} (no MPI dependency), \texttt{petsc\_coarse.hpp}
+(gated on \lstinline!OWT_KRYLOV_ENABLE_PETSC!, requires MPI).
+
+\section{\texorpdfstring{\lstinline!SubdomainConstantCoarseCorrection!}{SubdomainConstantCoarseCorrection}}
+\label{sec:7.1}
+
+\begin{lstlisting}
+template<std::floating_point T, std::integral Index = std::size_t>
+class SubdomainConstantCoarseCorrection {
+    SubdomainConstantCoarseCorrection(MPI_Comm, const DistributedLayout&, const BlockCsrMatrix<T,Index>&);
+    void update_values(const BlockCsrMatrix<T,Index>&);   // full re-derivation + MPI_Allreduce, every call
+    void apply(const BlockVector<T>&, BlockVector<T>&) const;
+    std::size_t coarse_dimension() const;   // rank_count * block_size
+};
+\end{lstlisting}
+
+Doc comment: \emph{``Piecewise-constant coarse correction with one
+aggregate per MPI rank and component. The Galerkin operator
+$A_c = P^T A P$ is assembled collectively\ldots and solved by a
+replicated, pivoted dense LU factorization. This is intentionally a
+robust baseline coarse level for modest rank counts.''} The coarse
+space has exactly one DOF per component per rank; every node owned by
+a rank shares one constant coarse value per component. Construction
+and every \lstinline!update_values!/\lstinline!apply! call is a full MPI collective ---
+\lstinline!Allreduce! cost, $O(\mathit{rank\_count}^2)$ replicated dense
+storage/factorization per component. There is \textbf{no} structural
+short-circuit like the local preconditioners' symbolic/numeric split
+--- \lstinline!update_values()! re-walks the entire local sparsity and
+re-does the \lstinline!Allreduce! every time.
+
+The README is explicit: this remains useful only as an inspectable
+small-rank baseline; production scale should select
+\lstinline!PetscSubdomainCoarseCorrection! (\secref{sec:7.4}).
+
+\section{\texorpdfstring{\lstinline!MultiplicativeTwoLevelPreconditioner!}{MultiplicativeTwoLevelPreconditioner}}
+\label{sec:7.2}
+
+\begin{lstlisting}
+template<class T, class Local, class Coarse, class Operator>
+class MultiplicativeTwoLevelPreconditioner {
+    MultiplicativeTwoLevelPreconditioner(Local&, Coarse&, Operator&, const BlockVector<T>& layout);
+    void apply(const BlockVector<T>&, BlockVector<T>&) const;
+};
+\end{lstlisting}
+
+Composes any coarse-level type (\secref{sec:7.1} or \secref{sec:7.4})
+with any local preconditioner (\secref{sec:6}) and the fine-level
+operator:
+\[
+M^{-1} r = \mathrm{coarse}(r) + \mathrm{local}\bigl(r - A\cdot\mathrm{coarse}(r)\bigr)
+\]
+--- genuinely multiplicative, one extra operator application per call
+(tracked separately via \lstinline!internal_operator_applications()!, not
+auto-folded into a \lstinline!SolverResult!). Holds only non-owning pointers
+to \lstinline!local!/\lstinline!coarse!/\lstinline!matrix_operator!; the caller must
+\lstinline!update_values()! each of them independently --- the composer has
+no update method of its own. Satisfies the same
+\lstinline!apply(input,output)! contract as everything else in
+\secref{sec:6}, so it plugs directly into any solver in \secref{sec:5}.
+
+\section{\texorpdfstring{\lstinline!AggregationMultigrid!}{AggregationMultigrid}}
+\label{sec:7.3}
+
+\texttt{multigrid.hpp}. A self-contained two-level (fine + one coarse)
+aggregation multigrid \textbf{solver}, not a bare preconditioner --- the
+coarse solve is explicitly rank-local; the header's own comment:
+\emph{``a distributed coarse-space implementation is a separate
+required scalability milestone.''}
+
+\begin{lstlisting}
+enum class MultigridCycle { v, w, full };
+enum class MultigridSmoother { jacobi, red_black_gauss_seidel, chebyshev };
+struct MultigridOptions {
+    std::size_t pre_smoothing_steps = 2, post_smoothing_steps = 2, coarse_smoothing_steps = 24;
+    std::size_t target_aggregate_size = 4; double jacobi_weight = 0.8;
+    MultigridSmoother smoother = jacobi; std::size_t chebyshev_levels = 8;
+};
+
+template<std::floating_point T, std::integral Index = std::size_t>
+class AggregationMultigrid {
+    AggregationMultigrid(const BlockCsrMatrix<T,Index>& fine_matrix, MultigridOptions = {});
+    SolverResult<T> solve(Operator& fine_operator, const BlockVector<T>& rhs, BlockVector<T>& solution,
+                           const SolverOptions<T>&, MultigridCycle cycle = v, Reduction reduction = {}) const;
+};
+\end{lstlisting}
+
+Everything --- greedy graph aggregation, Galerkin coarse-operator
+assembly, diagonal caching, a heuristic 2-coloring for red-black
+smoothing --- is done once in the constructor; \textbf{there is no
+numeric-only refresh method at all}. A coefficient change on the fine
+matrix requires constructing a brand-new \lstinline!AggregationMultigrid!.
+Aggregation only considers $\mathtt{column} < \mathtt{owned\_nodes()}$
+couplings (never crosses rank boundaries) and is greedy in CSR-entry
+order, not strength-of-connection based.
+
+\lstinline!MultigridCycle::w! here means literally ``do the coarse-grid
+correction twice per fine iteration'' (there is no third level to
+recurse into) rather than a true recursive W-cycle.
+\lstinline!MultigridCycle::full! only changes the \emph{initial guess} (one
+nested-iteration FMG pass before the main loop begins) --- the
+subsequent loop is otherwise identical to \lstinline!v!.
+\lstinline!coarse_smoothing_steps! defaults much higher (24) than
+\lstinline!pre!/\lstinline!post_smoothing_steps! (2) because the coarse level here is
+only iterative relaxation, not a direct solve (contrast
+\secref{sec:7.1}'s dense LU factorization) --- raise it, or shrink
+\lstinline!target_aggregate_size!, if the coarse level under-damps the smooth
+error mode.
+
+The \lstinline!Operator! passed to \lstinline!solve()! is used only for fine-level
+applies (so it can carry a halo exchange); the coarse level is always
+solved through the class's own internally-stored, rank-local coarse
+matrix with no \lstinline!Operator!/halo abstraction at that level.
+
+\section{\texorpdfstring{\lstinline!PetscSubdomainCoarseCorrection!}{PetscSubdomainCoarseCorrection}}
+\label{sec:7.4}
+
+See \secref{sec:9.2}.
+
+% ===========================================================================
+\chapter{Distributed execution (MPI)}
+\label{sec:8}
+
+Everything in this chapter requires \lstinline!-DOWT_KRYLOV_ENABLE_MPI=ON!.
+OWT never calls \lstinline!MPI_Init!/\lstinline!MPI_Finalize! --- the application must
+do this before constructing any of these types.
+
+\section{\texorpdfstring{\lstinline!MpiHaloExchange<T>!}{MpiHaloExchange<T>}}
+\label{sec:8.1}
+
+\texttt{mpi\_halo.hpp}. A zero-copy, reusable halo-exchange plan built
+from \textbf{committed derived MPI datatypes}.
+
+\begin{lstlisting}
+struct Neighbor { int rank = -1; std::vector<std::size_t> send_owned_nodes, receive_ghost_nodes; };
+
+template<std::floating_point T>
+class MpiHaloExchange {
+    MpiHaloExchange(MPI_Comm, std::size_t owned_nodes, std::size_t ghost_nodes,
+                    std::size_t block_size, std::vector<Neighbor>, int tag = 9173);
+    struct Handle { std::vector<MPI_Request> requests; };
+    Handle begin(BlockVector<T>&) const;   // posts non-blocking Irecv then Isend per neighbor
+    void end(Handle&) const;               // MPI_Waitall
+    void exchange(BlockVector<T>&) const;  // begin + end
+};
+\end{lstlisting}
+
+For each \lstinline!Neighbor!, one \lstinline!MPI_Type_create_indexed_block! is
+built and committed per non-empty direction (send/receive) at
+construction --- a single \lstinline!MPI_Irecv!/\lstinline!MPI_Isend! per neighbor per
+\lstinline!begin()! moves the whole scattered node set directly out of
+\lstinline!vector.data()!, no staging buffer. Every neighbor must have
+$\mathtt{rank} \geq 0$ and at least one non-empty node list, or
+construction throws. \lstinline!block_size! and every computed displacement
+($\mathtt{node\_index} \cdot \mathtt{block\_size}$) must fit in
+\lstinline!int! --- the MPI count type --- so total per-rank vector size is
+capped at $\mathtt{INT\_MAX}$ elements. Element type is \lstinline!MPI_FLOAT!
+for \lstinline!T=float!, \lstinline!MPI_DOUBLE! for \lstinline!T=double!; other floating
+types are not actually exchangeable despite the class template only
+constraining \lstinline!std::floating_point!. The destructor checks
+\lstinline!MPI_Finalized! before freeing committed datatypes, to avoid
+calling into a torn-down MPI runtime.
+
+\section{\texorpdfstring{\lstinline!OverlappedDistributedBlockOperator!}{OverlappedDistributedBlockOperator}}
+\label{sec:8.2}
+
+\texttt{mpi\_halo.hpp}.
+
+\begin{lstlisting}
+template<class Matrix, class Halo>
+class OverlappedDistributedBlockOperator {
+    OverlappedDistributedBlockOperator(Matrix matrix, Halo halo);
+    template<std::floating_point T> void apply(BlockVector<T>& input, BlockVector<T>& output);
+};
+\end{lstlisting}
+
+\lstinline!apply! overlaps communication with computation explicitly:
+
+\begin{enumerate}
+\item \lstinline!halo_.begin(input)! --- post non-blocking send/recv.
+\item \lstinline!matrix_.apply_rows(input, output, matrix_.interior_rows())! ---
+  compute rows independent of ghost data while the exchange is in
+  flight.
+\item \lstinline!halo_.end(handle)! --- block until ghost data has arrived.
+\item \lstinline!matrix_.apply_rows(input, output, matrix_.boundary_rows())! ---
+  compute the rest.
+\end{enumerate}
+
+A deduction guide binds the matrix by reference when constructed from
+an lvalue (zero-copy for the matrix; the halo policy is stored by
+value, moved in).
+
+\section{Overlap discovery for RAS}
+\label{sec:8.3}
+
+Covered in \secref{sec:6.4}: \lstinline!build_depth_one_overlap!
+(\texttt{overlap.hpp}) and \lstinline!DistributedOverlapPlan!
+(\texttt{overlap\_plan.hpp}). Both are MPI collectives; every rank in
+the communicator must call them, even a rank with an empty local
+frontier, since it may still need to serve another rank's request.
+
+\section{Choosing a reduction policy}
+\label{sec:8.4}
+
+See \secref{sec:4.4}. For a genuinely distributed solve, pass
+\lstinline!MpiReduction<T>(communicator)! (or \lstinline!MpiMixedPrecisionReduction<T>!
+for \lstinline!T=float! solves needing extended-precision global sums) as the
+\lstinline!Reduction! template argument to any solver in \secref{sec:5}.
+\lstinline!MpiDeterministicReduction<T>! exists for correctness verification
+(bit-reproducible for a fixed rank count and partition), not for
+production performance measurement.
+
+% ===========================================================================
+\chapter{PETSc adapter}
+\label{sec:9}
+
+\texttt{petsc\_adapter.hpp} and \texttt{petsc\_coarse.hpp}, both gated
+on \lstinline!OWT_KRYLOV_ENABLE_PETSC! (which itself requires
+\lstinline!OWT_KRYLOV_ENABLE_MPI!). Every PETSc call is wrapped in
+\lstinline!detail::petsc_check(...)!, which throws \lstinline!std::runtime_error! on
+any non-\lstinline!PETSC_SUCCESS! return code.
+
+\section{\texorpdfstring{\lstinline!PetscBlockCsrSolver!}{PetscBlockCsrSolver}}
+\label{sec:9.1}
+
+\begin{lstlisting}
+struct PetscSolverOptions {
+    std::string ksp_type = KSPGMRES, pc_type = PCBJACOBI, options_prefix = "owt_";
+    PetscReal relative_tolerance = 1e-8, absolute_tolerance = PETSC_DEFAULT;
+    PetscInt maximum_iterations = 1000; bool nonzero_initial_guess = true;
+    KSPNormType norm_type = KSP_NORM_UNPRECONDITIONED;
+};
+
+template<std::floating_point T, std::integral Index = std::size_t>
+class PetscBlockCsrSolver {
+    PetscBlockCsrSolver(MPI_Comm, const DistributedLayout&, const BlockCsrMatrix<T,Index>&,
+                         PetscSolverOptions = {});
+    void update_values();          // structure-preserving numeric refresh
+    SolverResult<T> solve(const BlockVector<T>& rhs, BlockVector<T>& solution);
+    double structure_setup_seconds() const; double last_numeric_update_seconds() const;
+    std::size_t numeric_updates() const;
+};
+\end{lstlisting}
+
+Build-time constraints: \lstinline!static_assert(sizeof(T) == sizeof(PetscScalar))!
+--- mixing e.g.\ \lstinline!double! OWT with a single-precision PETSc build
+fails to compile --- and complex \lstinline!PetscScalar! builds are rejected.
+The adapter stores raw (borrowed) pointers to the \lstinline!DistributedLayout!
+and \lstinline!BlockCsrMatrix! passed at construction; both must outlive the
+adapter.
+
+\textbf{Hard precondition on \lstinline!DistributedLayout!}: at construction,
+every local owned node's \lstinline!algebraic_local_to_global_nodes()! entry
+must equal exactly the contiguous global row PETSc's own
+\lstinline!MatCreateAIJ! ownership range assigns that rank
+(\lstinline!std::invalid_argument("PETSc adapter requires rank-contiguous algebraic owned numbering")!
+otherwise) --- i.e.\ the layout's global numbering must already be
+partitioned in rank order matching PETSc's row distribution.
+
+\lstinline!solve()!: copies \lstinline!rhs!/\lstinline!solution! into PETSc \lstinline!Vec!s (a real
+copy, not zero-copy, unlike the halo exchange), calls \lstinline!KSPSolve!,
+then \textbf{independently recomputes the true residual} via
+\lstinline!MatMult! + \lstinline!VecAYPX! against the actually assembled matrix
+rather than trusting \lstinline!KSPGetResidualNorm! alone --- this is the
+``independent true-residual checking'' referenced throughout the
+README and \texttt{docs/}. \lstinline!timings! is always allocated
+(unconditionally, unlike the native solvers, which only allocate when
+\lstinline!SolverOptions::collect_timings! is set).
+
+\lstinline!update_values()! is a structure-preserving numeric-only refresh
+(\lstinline!MatZeroEntries! + re-insert via cached preallocation) --- call it
+after mutating the source matrix's coefficients (e.g.\ each
+nonlinear/time-step iterate) without rebuilding the PETSc \lstinline!Mat!.
+
+\section{\texorpdfstring{\lstinline!PetscSubdomainCoarseCorrection!}{PetscSubdomainCoarseCorrection}}
+\label{sec:9.2}
+
+\texttt{petsc\_coarse.hpp}.
+
+\begin{lstlisting}
+struct PetscCoarseOptions {
+    std::string ksp_type = KSPGMRES, pc_type = PCGAMG, options_prefix = "owt_coarse_";
+    PetscReal relative_tolerance = 1e-10; PetscInt maximum_iterations = 200;
+};
+
+template<std::floating_point T, std::integral Index = std::size_t>
+class PetscSubdomainCoarseCorrection {
+    PetscSubdomainCoarseCorrection(MPI_Comm, const DistributedLayout&, const BlockCsrMatrix<T,Index>&,
+                                    PetscCoarseOptions = {});
+    void update_values(const BlockCsrMatrix<T,Index>&);
+    void apply(const BlockVector<T>&, BlockVector<T>&) const;   // throws on divergence, unlike solve()
+    std::size_t coarse_dimension() const;   // rank_count * block_size -- still global O(P)
+    std::size_t local_nonzeros() const;     // owners_.size() * block_size -- O(neighbor-rank degree), not O(P^2)
+};
+\end{lstlisting}
+
+Doc comment: \emph{``Sparse distributed version of the rank-constant
+Galerkin coarse correction. Each rank owns exactly \lstinline!block_size!
+coarse rows and stores couplings only to rank aggregates touched by
+its local unstructured matrix. It therefore removes the
+$O(P^2\cdot\mathit{block\_size})$ replicated storage/factorization of the
+inspectable baseline and delegates the coarse solve to PETSc.''} This
+is the scalable replacement the README recommends over
+\lstinline!SubdomainConstantCoarseCorrection! for production use: the
+\emph{global} coarse-space size is still $O(\mathit{rank\_count})$, but
+\textbf{local} storage/nonzero count only scales with how many
+distinct neighbor ranks actually touch this rank's local matrix --- a
+one-time \lstinline!analyze_structure()! pass at construction discovers
+exactly that neighbor set, and every restriction/prolongation is still
+piecewise-constant (sum-owned-nodes restriction, broadcast
+prolongation), matching the coarse-space semantics of \secref{sec:7.1}.
+
+\lstinline!apply()! \textbf{throws} \lstinline!std::runtime_error("distributed sparse coarse solve diverged")!
+on a non-converged \lstinline!KSPConvergedReason! --- stricter than
+\lstinline!PetscBlockCsrSolver::solve()!, which returns a diverged
+\lstinline!SolverResult! instead. The default \lstinline!pc_type! here is
+\lstinline!PCGAMG! (algebraic multigrid), versus \lstinline!PCBJACOBI! for the
+fine-level adapter --- the coarse solve is meant to be solved more
+thoroughly by default.
+
+% ===========================================================================
+\chapter{SpecWave compatibility layer}
+\label{sec:10}
+
+\texttt{specwave\_compat.hpp}. No \lstinline!#ifdef! gate on the file itself,
+though it \lstinline!#include!s \texttt{idrs.hpp}, \texttt{multigrid.hpp},
+\texttt{pipelined\_bicgstab.hpp}, \texttt{stationary.hpp} (not
+\texttt{krylov\_solvers.hpp} --- a translation unit calling
+\lstinline!gmres!/\lstinline!bicgstab! directly alongside this header must
+include \texttt{krylov\_solvers.hpp} itself).
+
+\section{\texorpdfstring{\lstinline!SpecWaveSolver! enum and dispatcher}{SpecWaveSolver enum and dispatcher}}
+\label{sec:10.1}
+
+\begin{lstlisting}
+enum class SpecWaveSolver : int { jacobi = 0, gauss_seidel, chebyshev_srj,
+    pipelined_stable, pipelined_residual_replacement, bicgstab_ssor, petsc,
+    gmres_ssor, bicgstab_pure_ssor, bicgstab_ilu0, pipelined_mixed_precision,
+    bicgstab_full_system, pipelined_full_system, bicgstab_full_system_ilu0,
+    idrs, communication_hiding_bicgstab, asynchronous_gauss_seidel,
+    multigrid_v_jacobi, multigrid_v_red_black, multigrid_w, full_multigrid,
+    pipelined_bicgstab_ilu0 };   // = 21
+
+constexpr std::string_view name(SpecWaveSolver) noexcept;
+
+template<std::floating_point T, std::integral Index, class Operator, class Halo,
+         class Reduction = SerialReduction<T>>
+SolverResult<T> solve_specwave_native(SpecWaveSolver, const BlockCsrMatrix<T,Index>& matrix,
+                                       Operator&, Halo&, const BlockVector<T>& rhs,
+                                       BlockVector<T>& solution, SolverOptions<T> options = {},
+                                       Reduction reduction = {});
+\end{lstlisting}
+
+Doc comment: \emph{``Compatibility dispatcher for every native SpecWave
+solver ID. PETSc remains an explicit optional adapter because it
+requires runtime and numbering state.''}
+
+\begin{longtable}{C{0.08\textwidth}L{0.24\textwidth}P{0.32\textwidth}L{0.20\textwidth}}
+\toprule
+ID & Enumerator & Dispatches to & Preconditioner \\
+\midrule
+\endhead
+0 & jacobi & \lstinline!jacobi(...)! & JacobiPreconditioner \\
+1 & gauss\_seidel & \lstinline!gauss_seidel(matrix, op, halo, ...)! & --- \\
+2 & chebyshev\_srj & \lstinline!chebyshev_srj(..., 8, 0.99, ...)! & JacobiPreconditioner; 8 stages, 0.99 hard-coded \\
+3 & pipelined\_stable & \lstinline!communication_hiding_bicgstab(...)! & LocalSsorPreconditioner \\
+4 & pipelined\_residual\_replacement & same, with residual\_replacement\_interval forced to 50 if it was 0 & LocalSsorPreconditioner \\
+5, 8, 11 & bicgstab\_ssor, bicgstab\_pure\_ssor, bicgstab\_full\_system & \lstinline!bicgstab(...)! --- \textbf{all three share one case label, dispatched identically} & LocalSsorPreconditioner \\
+6 & petsc & \textbf{returns \texttt{\{\}} unconditionally} --- deliberate no-op & --- \\
+7 & gmres\_ssor & \lstinline!gmres(...)! & LocalSsorPreconditioner \\
+9, 13 & bicgstab\_ilu0, bicgstab\_full\_system\_ilu0 & \lstinline!bicgstab(...)!, shared case label & Ilu0Preconditioner \\
+10 & pipelined\_mixed\_precision & \lstinline!communication_hiding_bicgstab(...)! with a compile-time-selected mixed-precision reduction (see below) & LocalSsorPreconditioner \\
+12 & pipelined\_full\_system & \lstinline!pipelined_bicgstab(...)! & LocalSsorPreconditioner \\
+14 & idrs & \lstinline!idrs(...)! & LocalSsorPreconditioner \\
+15 & communication\_hiding\_bicgstab & \lstinline!communication_hiding_bicgstab(...)! & LocalSsorPreconditioner \\
+16 & asynchronous\_gauss\_seidel & \lstinline!asynchronous_gauss_seidel(matrix, op, halo, ...)! & --- \\
+17--20 & multigrid\_v\_jacobi, multigrid\_v\_red\_black, multigrid\_w, full\_multigrid & builds an \lstinline!AggregationMultigrid! and calls \lstinline!.solve(...)!; smoother = red-black only for ID 18, else Jacobi; cycle = w/full for IDs 19/20, else v & --- \\
+21 & pipelined\_bicgstab\_ilu0 & \lstinline!pipelined_bicgstab(...)! & Ilu0Preconditioner \\
+any unmatched & --- & returns \texttt{\{\}} & --- \\
+\bottomrule
+\end{longtable}
+
+Only \lstinline!gauss_seidel! (ID 1) and \lstinline!asynchronous_gauss_seidel! (ID
+16) actually use the \lstinline!halo! parameter --- every other case ignores
+it.
+
+\textbf{ID 10's reduction selection} (\lstinline!pipelined_mixed_precision!)
+is the one branch with an internal \lstinline!#ifdef OWT_KRYLOV_ENABLE_MPI!:
+if the caller's \lstinline!Reduction! is \lstinline!MpiReduction<T>!, it's upgraded
+to \lstinline!MpiMixedPrecisionReduction<T>(reduction.communicator())!; if
+it's already \lstinline!MpiMixedPrecisionReduction<T>!, it passes through;
+otherwise (serial) it uses \lstinline!MixedPrecisionSerialReduction<T>{}!.
+
+\textbf{\lstinline!SpecWaveSolver::petsc! (ID 6) is a deliberate no-op} ---
+callers needing ID 6 must special-case it and call
+\lstinline!PetscBlockCsrSolver! directly (\secref{sec:9.1}).
+
+\section{ID-to-implementation table}
+\label{sec:10.2}
+
+From \texttt{docs/SPECWAVE\_PORT\_MATRIX.md}.
+
+\begin{longtable}{C{0.06\textwidth}P{0.26\textwidth}P{0.28\textwidth}P{0.28\textwidth}}
+\toprule
+Legacy ID & SpecWave implementation & OWT-Krylov implementation & Status \\
+\midrule
+\endhead
+0 & Jacobi loop, \texttt{RDschemes\_implicit\_V2.hpp} & \lstinline!jacobi! & Generic operator and diagonal preconditioner \\
+1 & Gauss-Seidel loop & \lstinline!gauss_seidel! & Fused node blocks and halo policy \\
+2 & \texttt{ChebyshevSRJ.hpp} & \lstinline!chebyshev_srj! & Generated Chebyshev schedule \\
+3 & \lstinline!solve_pipelined_stable! & \lstinline!communication_hiding_bicgstab! + compensated/mixed reduction & Deterministic global reduction order not guaranteed by MPI \\
+4 & \lstinline!solve_pipelined_rr! & communication-hiding recurrence + residual-replacement & Verified true residual on replacement/convergence \\
+5 & \lstinline!BiCGSTAB_Solver::solve!, SSOR & \lstinline!bicgstab! + LocalSsorPreconditioner & Zero-overlap local solve \\
+6 & \lstinline!PETScFullSystemSolver! & \lstinline!PetscBlockCsrSolver! & Optional adapter; no global-ID all-gather; independent true residual \\
+7 & \lstinline!GMRES_Solver::solve!, SSOR & \lstinline!gmres!/\lstinline!fgmres! + zero-overlap local SSOR & FGMRES is an added generalization \\
+8 & Same core path as ID 5 & same as ID 5 & Preserved compatibility alias \\
+9 & \lstinline!solve_ilu0! & \lstinline!bicgstab! + Ilu0Preconditioner & Rank-local block-Jacobi ILU(0) \\
+10 & 15-vector \lstinline!solve_pipelined_mixed! & \lstinline!communication_hiding_bicgstab! + mixed-precision reduction & Ported separately from ID 12; MPI float scalars reduce through double \\
+11 & \lstinline!solve_full_system! & distributed \lstinline!bicgstab! & Ownership-aware global reductions are policies \\
+12 & full-system \lstinline!solve_pipelined! & \lstinline!pipelined_bicgstab! & Normal three-reduction recurrence with happy-breakdown check \\
+13 & full-system \lstinline!solve_ilu0! & distributed \lstinline!bicgstab! + ILU(0) & --- \\
+14 & \lstinline!IDRs_Solver! & \lstinline!idrs! & Cyclic dR/dX form; IDR(1) uses equivalent BiCGSTAB recurrence \\
+15 & PETSc/Cools-style 15-vector \lstinline!solve_pipelined! & \lstinline!communication_hiding_bicgstab! & Ported separately from ID 12; two batched reductions overlap preconditioner/operator work \\
+16 & \lstinline!AsyncGS_Solver! & \lstinline!asynchronous_gauss_seidel! & Interior/boundary ordering with begin/end halo exchange \\
+17 & aggregation V-cycle, Jacobi & AggregationMultigrid, V, Jacobi & Coarse solve remains rank-local \\
+18 & aggregation V-cycle, red-black GS & AggregationMultigrid, V, red-black & Coarse solve remains rank-local \\
+19 & aggregation W-cycle & AggregationMultigrid, W & Two-level cycle \\
+20 & full multigrid & AggregationMultigrid, full & Two-level FMG initialization and polishing \\
+21 & \lstinline!solve_ilu0_pipelined! & \lstinline!pipelined_bicgstab! + ILU(0) & Normal three-reduction recurrence \\
+22 & OWT integration path & \lstinline!OWTKrylovSpecWaveSolver! + borrowed split CSR & See caveat below \\
+\bottomrule
+\end{longtable}
+
+SpecWave's optional \lstinline!AAJ_Solver! is ported as \lstinline!anderson_jacobi!
+(\texttt{stationary.hpp}, \secref{sec:6.5}); it is not a separate
+numeric legacy ID.
+
+\textbf{ID 22 caveat}: \lstinline!OWTKrylovSpecWaveSolver! and
+\lstinline!solver_type=22! are \textbf{not defined anywhere in this
+repository} --- confirmed by exhaustive search of \texttt{include/},
+\texttt{tests/}, \texttt{benchmarks/}. Per the port matrix, ID 22 is
+``the OWT integration path'' and lives on the \textbf{SpecWave side}
+(the sibling application repository), which consumes this library's
+\lstinline!SplitBlockCsrMatrixView!, \lstinline!MpiHaloExchange!, etc.\ by
+reference, but that class is not part of OWT-Krylov's public API. Do
+not treat it as callable from this library.
+
+\textbf{ID 11 discrepancy}: the port matrix table describes ID 11 as
+mapping to ``distributed \lstinline!bicgstab!'' without mentioning SSOR, but
+\lstinline!solve_specwave_native!'s actual code shares ID 11's case label
+with IDs 5 and 8 --- all three get the identical \lstinline!bicgstab! +
+\lstinline!LocalSsorPreconditioner! call. This manual documents the code's
+actual behavior, not the table's description, where they disagree.
+
+% ===========================================================================
+\chapter{Complete examples}
+\label{sec:11}
+
+All five are adapted from the actual test suite (cited per example) and
+compile against the API documented above.
+
+\section{Serial GMRES}
+\label{sec:11.1}
+
+Based on \texttt{tests/test\_core.cpp}.
+
+\begin{lstlisting}
+#include <owt/krylov/owt_krylov.hpp>
+#include <iostream>
+
+int main() {
+    using namespace owt::krylov;
+
+    BlockCsrMatrix<double> matrix(
+        /*owned=*/3, /*ghost=*/0, /*block_size=*/2,
+        /*row_offsets=*/{0, 2, 5, 7},
+        /*columns=*/    {0, 1, 0, 1, 2, 1, 2},
+        /*values=*/     {4, 5, -1, -1,  -1, -1, 4, 5, -1, -1,  -1, -1, 3, 4});
+    DistributedBlockOperator operator_view(matrix);   // zero-copy: borrows matrix
+
+    BlockVector<double> exact(3, 0, 2);
+    for (std::size_t i = 0; i < exact.owned_size(); ++i) exact.data()[i] = double(i + 1);
+    BlockVector<double> rhs = exact.clone_layout();
+    BlockVector<double> exact_copy = exact;
+    operator_view.apply(exact_copy, rhs);             // manufacture a consistent rhs
+
+    SolverOptions<double> options;
+    options.relative_tolerance = 1e-12;
+    options.convergence_check_interval = 1;
+    options.maximum_iterations = 100;
+    options.restart = 8;
+    const JacobiPreconditioner jacobi(matrix);
+
+    BlockVector<double> solution = exact.clone_layout();
+    const auto result = gmres(operator_view, rhs, solution, options, jacobi);
+    std::cout << "converged=" << result.converged()
+              << " iterations=" << result.iterations << '\n';
+}
+\end{lstlisting}
+
+\section{MPI-distributed GMRES}
+\label{sec:11.2}
+
+Based on \texttt{tests/test\_mpi.cpp}. Requires
+\lstinline!-DOWT_KRYLOV_ENABLE_MPI=ON!; run with 2 ranks.
+
+\begin{lstlisting}
+#include <owt/krylov/owt_krylov.hpp>
+#include <mpi.h>
+#include <iostream>
+
+int main(int argc, char** argv) {
+    MPI_Init(&argc, &argv);
+    using namespace owt::krylov;
+    int rank = 0, size = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);   // expects size == 2
+
+    using Halo = MpiHaloExchange<double>;
+    Halo::Neighbor neighbor;
+    neighbor.rank = 1 - rank;
+    neighbor.send_owned_nodes = {0};
+    neighbor.receive_ghost_nodes = {0};
+
+    BlockCsrMatrix<double> matrix(1, 1, 2, {0, 2}, {0, 1}, {2, 2, -1, -1});
+    const JacobiPreconditioner jacobi(matrix);
+    Halo halo(MPI_COMM_WORLD, 1, 1, 2, {neighbor});
+    OverlappedDistributedBlockOperator distributed_operator(matrix, std::move(halo));
+
+    BlockVector<double> exact(1, 1, 2);
+    exact.node(0)[0] = double(rank + 1);
+    exact.node(0)[1] = double(2 * (rank + 1));
+    BlockVector<double> rhs = exact.clone_layout();
+    BlockVector<double> exact_copy = exact;
+    distributed_operator.apply(exact_copy, rhs);      // fills rhs, exchanges exact's ghost
+
+    BlockVector<double> solution = exact.clone_layout();
+    SolverOptions<double> options;
+    options.relative_tolerance = 1e-12;
+    options.convergence_check_interval = 1;
+    options.maximum_iterations = 50;
+    options.restart = 8;
+    const auto result = gmres(distributed_operator, rhs, solution, options,
+                               jacobi, MpiReduction<double>(MPI_COMM_WORLD));
+    if (rank == 0) std::cout << "converged=" << result.converged() << '\n';
+    MPI_Finalize();
+}
+\end{lstlisting}
+
+\section{Restricted Additive Schwarz (depth-1)}
+\label{sec:11.3}
+
+Based on \texttt{tests/test\_mpi.cpp}, continuing \secref{sec:11.2}'s
+setup (\lstinline!communicator!, \lstinline!matrix!, \lstinline!rhs!, \lstinline!exact!,
+\lstinline!distributed_operator!).
+
+\begin{lstlisting}
+DistributedLayout overlap_layout(
+    /*global_nodes=*/2, /*block_size=*/2,
+    /*owned_global=*/{std::uint64_t(rank)}, /*ghost_global=*/{std::uint64_t(1 - rank)},
+    /*ghost_owners=*/{1 - rank},
+    /*algebraic=*/{std::uint64_t(rank), std::uint64_t(1 - rank)});
+
+auto overlap = build_depth_one_overlap(MPI_COMM_WORLD, overlap_layout, matrix);
+
+MpiHaloExchange<double>::Neighbor ras_neighbor;
+ras_neighbor.rank = 1 - rank;
+ras_neighbor.send_owned_nodes = {0};
+ras_neighbor.receive_ghost_nodes = {0};
+MpiHaloExchange<double> ras_halo(MPI_COMM_WORLD, 1, 1, 2, {ras_neighbor}, /*tag=*/9175);
+
+RestrictedAdditiveSchwarzIlu0<double, std::size_t, MpiHaloExchange<double>> ras(
+    rhs, std::move(overlap.matrix), std::move(overlap.outer_local_nodes),
+    ras_halo, /*overlap_depth=*/1);
+
+SolverOptions<double> options;
+options.relative_tolerance = 1e-12;
+options.convergence_check_interval = 1;
+options.maximum_iterations = 50;
+options.restart = 8;
+
+BlockVector<double> ras_solution = exact.clone_layout();
+const auto ras_result = gmres(distributed_operator, rhs, ras_solution, options,
+                               ras, MpiReduction<double>(MPI_COMM_WORLD));
+// exact depth-one overlap converges the exact local correction in <= 1 GMRES iteration
+\end{lstlisting}
+
+For a many-rank, cached, arbitrary-depth variant, see
+\lstinline!DistributedOverlapPlan! + \lstinline!CachedRestrictedAdditiveSchwarzIlu0!
+in \texttt{tests/test\_mpi\_partitions.cpp}.
+
+\section{PETSc adapter with independent residual check}
+\label{sec:11.4}
+
+Based on \texttt{tests/test\_mpi.cpp}. Requires
+\lstinline!-DOWT_KRYLOV_ENABLE_MPI=ON -DOWT_KRYLOV_ENABLE_PETSC=ON!.
+
+\begin{lstlisting}
+#include <owt/krylov/owt_krylov.hpp>
+#include <mpi.h>
+#include <petscksp.h>
+
+int main(int argc, char** argv) {
+    MPI_Init(&argc, &argv);
+    PetscInitialize(&argc, &argv, nullptr, nullptr);
+    using namespace owt::krylov;
+    int rank = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    BlockCsrMatrix<double> matrix(1, 1, 2, {0, 2}, {0, 1}, {2, 2, -1, -1});
+    DistributedLayout layout(2, 2, {std::uint64_t(rank)}, {std::uint64_t(1 - rank)},
+                              {1 - rank}, {std::uint64_t(rank), std::uint64_t(1 - rank)});
+
+    PetscSolverOptions petsc_options;
+    petsc_options.ksp_type = KSPBCGS;
+    petsc_options.pc_type = PCJACOBI;
+    petsc_options.relative_tolerance = 1e-12;
+    PetscBlockCsrSolver solver(MPI_COMM_WORLD, layout, matrix, petsc_options);
+
+    BlockVector<double> rhs(1, 1, 2);
+    rhs.node(0)[0] = rank == 0 ? 0.0 : 3.0;
+    rhs.node(0)[1] = rank == 0 ? 0.0 : 6.0;
+    BlockVector<double> solution = rhs.clone_layout();
+    const auto result = solver.solve(rhs, solution);
+    // result.true_residual_norm is recomputed independently via MatMult, not
+    // taken from KSPGetResidualNorm alone.
+
+    PetscFinalize();
+    MPI_Finalize();
+}
+\end{lstlisting}
+
+\section{GCRO-DR recycling across related solves}
+\label{sec:11.5}
+
+Based on \texttt{tests/test\_core.cpp}. Requires
+\lstinline!-DOWT_KRYLOV_ENABLE_LAPACK=ON!; continues \secref{sec:11.1}'s
+setup.
+
+\begin{lstlisting}
+RecycleSpace<double> recycle_space(/*maximum_vectors=*/2);
+ArnoldiSnapshot<double> snapshot;
+
+BlockVector<double> first_solution = exact.clone_layout();
+const auto first = gcrodr(operator_view, rhs, first_solution, recycle_space, options,
+                           jacobi, SerialReduction<double>{},
+                           static_cast<SolverWorkspace<double>*>(nullptr), &snapshot);
+// recycle_space now holds up to 2 harmonic-Ritz vectors
+
+// Solve a related (perturbed) system, reusing the recycled subspace.
+BlockVector<double> perturbed_exact = exact;
+perturbed_exact.node(0)[0] += 0.25;
+perturbed_exact.node(2)[1] -= 0.5;
+BlockVector<double> perturbed_rhs = exact.clone_layout();
+BlockVector<double> perturbed_copy = perturbed_exact;
+operator_view.apply(perturbed_copy, perturbed_rhs);
+
+BlockVector<double> second_solution = exact.clone_layout();
+const auto second = gcrodr(operator_view, perturbed_rhs, second_solution,
+                            recycle_space, options, jacobi);
+// second converges faster because recycle_space was seeded by the first solve
+\end{lstlisting}
+
+A simpler \lstinline!recycled_fgmres! example (same idea, no harmonic-Ritz
+extraction, no \lstinline!OWT_KRYLOV_ENABLE_LAPACK! needed) is in
+\texttt{tests/test\_core.cpp} as well.
+
+% ===========================================================================
+\chapter{Benchmarking}
+\label{sec:12}
+
+\section{Unstructured development benchmark}
+\label{sec:12.1}
+
+\begin{lstlisting}[style=bashstyle]
+cmake -S . -B build-bench -DOWT_KRYLOV_BUILD_BENCHMARKS=ON
+cmake --build build-bench
+./build-bench/benchmarks/owt_krylov_unstructured_benchmark 64 32
+\end{lstlisting}
+
+Emits CSV with iterations, applications, reductions, elapsed solve
+time, and verified residual. This is a regression/engineering fixture,
+not a substitute for the SpecWave Limon comparison below.
+
+With MPI enabled, \lstinline!owt_krylov_distributed_benchmark! constructs
+one slab-partitioned problem and runs native OWT and (when enabled)
+PETSc on the same matrix, partition, initial guess, unpreconditioned
+stopping norm, and verified residual --- the PETSc adapter uses exact
+diagonal/off-diagonal AIJ preallocation, and its structural setup and
+numeric update are reported separately from solve time.
+
+\section{SpecWave Limon protocol}
+\label{sec:12.2}
+
+\texttt{benchmarks/specwave\_limon.sh} runs the native SpecWave
+baseline, the borrowed OWT-Krylov adapter, and PETSc from
+\textbf{independent temporary copies} of the same Limon case. It does
+not edit \texttt{wwx\_bench.nml}, \texttt{system.dat}, reference
+results, or manuscript/observational data; SpecWave's \lstinline!--solver!
+CLI flag only changes the in-memory configuration for that run.
+
+Controlled fields: one \texttt{system.dat}, NML config, partitioner,
+rank count, spectral block ($36\times36$), initial wave field,
+time-step count, stopping tolerance; one executable, compiler
+optimization set, MPI implementation, and host; independently computed
+$\|b-Ax\|_2/\|b\|_2$ for both OWT-Krylov and PETSc; separate
+structural-setup, numeric-update/assembly, and solve telemetry where
+the backend exposes it.
+
+\begin{lstlisting}[style=bashstyle]
+make -C ../SpecWave/TRITON-C/ww-x -f Makefile.linux \
+  USE_OWT_KRYLOV=1 USE_PETSC=1
+WWX=/path/to/ww-x MPI_RANKS=4 benchmarks/specwave_limon.sh
+\end{lstlisting}
+
+The script records repository revisions, host, MPI launcher, rank
+count, and a CSV row per solver. A timing comparison is valid only
+when exit codes are zero \emph{and} independently verified residuals
+satisfy the same tolerance across variants. \textbf{Known limitation}:
+legacy native ID 12 (\lstinline!pipelined_full_system!) currently has
+application convergence output but no independent linear
+true-residual hook connected, so it remains a performance baseline
+only --- not a strict residual-matched comparison --- until that
+monitor is connected.
+
+% ===========================================================================
+\chapter{Testing}
+\label{sec:13}
+
+\begin{lstlisting}[style=bashstyle]
+ctest --test-dir build --output-on-failure          # serial suite
+ctest --test-dir build-mpi --output-on-failure       # MPI suite (needs OWT_KRYLOV_ENABLE_MPI)
+\end{lstlisting}
+
+Test binaries (\texttt{tests/CMakeLists.txt}):
+
+\begin{longtable}{L{0.26\textwidth}C{0.14\textwidth}P{0.46\textwidth}}
+\toprule
+Binary & Ranks & Covers \\
+\midrule
+\endhead
+owt\_krylov\_core\_tests & 1 (serial) & Every native SpecWave solver ID, GMRES/BiCGSTAB/IDR(s)/GCRO-DR, multigrid, ILU(0), local SSOR \\
+owt\_krylov\_mpi\_tests & 2 & Owned/ghost reduction rule, direct block halo exchange, automatic overlap import, RAS, distributed coarse correction, PETSc adapter \\
+owt\_krylov\_partition\_tests & 2 and 4 & Partitioned solves, cached arbitrary-depth RAS via \lstinline!DistributedOverlapPlan! \\
+\bottomrule
+\end{longtable}
+
+The serial suite exercises every native SpecWave solver ID 0--21. The
+MPI suite verifies the owned/ghost reduction rule, direct block halo
+exchange, automatic overlap import, RAS, the distributed coarse
+correction, and partitioned solves; with PETSc enabled, the two-rank
+test also assembles and solves through the PETSc adapter.
+
+% ===========================================================================
+\chapter{Known rough edges}
+\label{sec:14}
+
+Findings from a direct line-by-line reading of the headers, worth
+knowing before relying on the affected behavior:
+
+\begin{itemize}
+\item \textbf{\texttt{ordering.hpp}'s \lstinline!NodeOrdering! enum is
+  never consumed anywhere in the library.} It is a labeling
+  vocabulary only; there is no \lstinline!order(matrix, NodeOrdering::x)!
+  dispatcher and no solver/preconditioner applies a reordering
+  automatically (\secref{sec:4.3}).
+\item \textbf{\lstinline!approximate_minimum_degree_order! is a plain
+  $O(n^2)$ greedy minimum-degree ordering}, not the near-linear AMD
+  algorithm the name suggests --- no quotient-graph or
+  approximate-degree optimization (\secref{sec:4.3}).
+\item \textbf{\lstinline!RasSsorPreconditioner! is a compatibility alias
+  for \lstinline!LocalSsorPreconditioner!}, not an actual overlapping RAS
+  preconditioner --- the class's own doc comment says so explicitly
+  (\secref{sec:6.2}). Use
+  \lstinline!RestrictedAdditiveSchwarzIlu0!/\lstinline!CachedRestrictedAdditiveSchwarzIlu0!
+  for genuine RAS.
+\item \textbf{\lstinline!solver_type=22!/\lstinline!OWTKrylovSpecWaveSolver! do
+  not exist in this repository} --- they live in the sibling SpecWave
+  application repository, which consumes OWT-Krylov's types by
+  reference (\secref{sec:10.1}).
+\item \textbf{\lstinline!solve_specwave_native! dispatches legacy IDs 5,
+  8, and 11 identically} (all three call \lstinline!bicgstab! with
+  \lstinline!LocalSsorPreconditioner!), even though
+  \texttt{docs/SPECWAVE\_PORT\_MATRIX.md} describes ID 11 without
+  mentioning SSOR (\secref{sec:10.2}).
+\item \textbf{\lstinline!SolverOptions::relaxation! is inert for every
+  Krylov solver} in
+  \texttt{krylov\_solvers.hpp}/\texttt{pipelined\_bicgstab.hpp}/\texttt{idrs.hpp}/\texttt{gcrodr.hpp}/\texttt{recycling.hpp}
+  --- it is read only by \texttt{stationary.hpp}'s \lstinline!jacobi()!
+  (\secref{sec:5.2}). \lstinline!SolverOptions::verify_true_residual! is
+  not branched on anywhere in the reviewed solvers --- true-residual
+  verification always happens.
+\item \textbf{\lstinline!idrs()! ignores
+  \lstinline!options.residual_replacement_interval!} entirely, and has no
+  \lstinline!SolverWorkspace!, \lstinline!*_stable!, \lstinline!*_mixed_precision!, or
+  \lstinline!*_residual_replacement! overloads unlike every BiCGSTAB
+  variant (\secref{sec:5.6}).
+\item \textbf{\lstinline!pipelined_bicgstab_residual_replacement!/\lstinline!communication_hiding_bicgstab_residual_replacement!
+  hardcode \lstinline!SerialReduction<T>!}, silently ignoring any
+  \lstinline!Reduction! the caller otherwise uses --- unlike the
+  plain-\lstinline!bicgstab! residual-replacement wrapper, which forwards
+  the caller's choice (\secref{sec:5.5}).
+\item \textbf{\lstinline!DistributedLayout! never cross-validates
+  \lstinline!algebraic_local_to_global_nodes()! against
+  \lstinline!owned_global_nodes()!/\lstinline!ghost_global_nodes()!} --- it checks
+  each array's internal consistency independently, so a caller could
+  construct a layout where the two are mutually inconsistent without
+  triggering an exception (\secref{sec:3.3}).
+\item \textbf{\texttt{overlap.hpp}/\texttt{overlap\_plan.hpp} have an
+  inconsistent collective-safety guarantee for missing-row errors}:
+  \lstinline!DistributedOverlapPlan::import_layer! agrees a missing-row
+  failure across all ranks via \lstinline!MPI_Allreduce! before throwing,
+  but \lstinline!build_depth_one_overlap! and
+  \lstinline!DistributedOverlapPlan::build_residual_schedule! throw
+  locally with no cross-rank agreement --- a request naming an
+  unowned node could make one rank throw while others proceed into a
+  later collective (\secref{sec:6.4}).
+\item \textbf{\lstinline!SplitLocalSsorPreconditioner!'s internal
+  \lstinline!as_size()! has no negative-value guard}, unlike the equivalent
+  helper in every other matrix type in the library (\lstinline!BlockCsrMatrix!,
+  \lstinline!DenseBlockCsrMatrix!, \lstinline!SplitBlockCsrMatrixView! all throw
+  on a negative signed \lstinline!Index!) (\secref{sec:6.2}).
+\item \textbf{\lstinline!JacobiPreconditioner!'s CTAD deduction guide's
+  default tolerance (\lstinline!T(0)!) doesn't match the real
+  constructor's default ($64\cdot\mathrm{eps}$)} --- purely cosmetic
+  (deduction guides only steer template-argument deduction), but
+  worth knowing if you read the guide as documentation
+  (\secref{sec:6.1}).
+\item \textbf{\lstinline!OpenMPTargetExecutionPolicy! re-transfers the
+  entire matrix and vectors to the device on every \lstinline!apply()!
+  call} --- no persistent device-resident state exists in this header
+  (\secref{sec:4.2}).
+\end{itemize}
+
+% ===========================================================================
+\chapter{Claim boundaries}
+\label{sec:15}
+
+Carried forward verbatim in spirit from \texttt{README.md} and
+\texttt{docs/ROADMAP.md} --- read these before citing a performance
+number from this library:
+
+\begin{itemize}
+\item No OWT-versus-PETSc speed claim without the same matrix,
+  partition, initial guess, tolerance, and an independently verified
+  $\|b-Ax\|$.
+\item No scalable-coarse claim from \lstinline!SubdomainConstantCoarseCorrection!
+  alone --- it is a replicated dense small-rank baseline;
+  \lstinline!PetscSubdomainCoarseCorrection! is the scale-appropriate
+  choice.
+\item No reproducibility claim across different partitions from
+  \lstinline!MpiDeterministicReduction! --- it is deterministic only for a
+  fixed partition and rank ordering, not partition-independent.
+\item No GCRO-DR claim without harmonic-Ritz extraction and a
+  corresponding repeated-system test (both exist and are exercised,
+  but the claim is scoped to that configuration).
+\item OpenMP Target is an implemented portability backend; no GPU
+  speed claim is made without device-resident workload measurements
+  (see the transfer-cost note in \secref{sec:4.2} and \secref{sec:14}).
+\item The SpecWave adapter and non-mutating Limon protocol are
+  implemented, but OWT makes no new application-level
+  native-over-PETSc timing claim until a recorded run has zero exit
+  codes and matched independently verified residuals
+  (\secref{sec:12.2}).
+\end{itemize}
+
+% ===========================================================================
+\chapter{Header index}
+\label{sec:16}
+
+All under \texttt{include/owt/krylov/}. \texttt{owt\_krylov.hpp}
+includes every header in this table.
+
+\newcommand{\flag}[1]{\texttt{OWT\allowbreak\_KRYLOV\allowbreak\_ENABLE\allowbreak\_#1}}
+
+\begin{longtable}{L{0.20\textwidth}P{0.42\textwidth}P{0.28\textwidth}}
+\toprule
+Header & Provides & Build flag \\
+\midrule
+\endhead
+core.hpp & \lstinline!BlockVector!, \lstinline!SolverOptions!, \lstinline!SolverResult!, \lstinline!SolverWorkspace!, \lstinline!ArnoldiSnapshot!, BLAS-1 free functions & --- \\
+block\_csr.hpp & \lstinline!BlockCsrMatrix!, \lstinline!NoHaloExchange!, \lstinline!DistributedBlockOperator! & --- \\
+dense\_block\_csr.hpp & \lstinline!DenseBlockCsrMatrix! (true dense block coupling) & --- \\
+split\_block\_csr.hpp & \lstinline!SplitBlockCsrMatrixView!, \lstinline!SplitLocalSsorPreconditioner! & --- \\
+distributed\_layout.hpp & \lstinline!DistributedLayout! & --- \\
+execution.hpp & \lstinline!HostExecutionPolicy!, \lstinline!OpenMPTargetExecutionPolicy!, \lstinline!PolicyBlockOperator! & \flag{OPENMP\_TARGET} gates the target policy \\
+simd.hpp & \lstinline!simd::fused_multiply_add!, \lstinline!simd::axpy! & --- (ISA macros, not CMake options) \\
+ordering.hpp & RCM, AMD-style, nested-dissection, Hilbert node orderings & --- \\
+reduction.hpp & \lstinline!SerialReduction!, \lstinline!MixedPrecisionSerialReduction!, \lstinline!MpiReduction!, \lstinline!MpiDeterministicReduction!, \lstinline!MpiMixedPrecisionReduction! & MPI types gated on \flag{MPI} \\
+krylov\_solvers.hpp & \lstinline!gmres!/\lstinline!fgmres!, \lstinline!bicgstab! + policy wrappers & --- \\
+pipelined\_bicgstab.hpp & \lstinline!pipelined_bicgstab!, \lstinline!communication_hiding_bicgstab! & --- \\
+idrs.hpp & \lstinline!idrs! & --- \\
+recycling.hpp & \lstinline!RecycleSpace!, \lstinline!recycled_fgmres! & --- \\
+gcrodr.hpp & \lstinline!extract_harmonic_ritz!, \lstinline!gcrodr! & \flag{LAPACK} \\
+preconditioner.hpp & \lstinline!IdentityPreconditioner!, \lstinline!JacobiPreconditioner!, \lstinline!LocalSsorPreconditioner!, \lstinline!Ilu0Preconditioner!, \lstinline!RestrictedAdditiveSchwarzIlu0! & --- \\
+stationary.hpp & \lstinline!jacobi!, \lstinline!chebyshev_srj!, \lstinline!gauss_seidel!, \lstinline!asynchronous_gauss_seidel!, \lstinline!anderson_jacobi! & --- \\
+overlap.hpp & \lstinline!build_depth_one_overlap! & \flag{MPI} \\
+overlap\_plan.hpp & \lstinline!DistributedOverlapPlan!, \lstinline!CachedRestrictedAdditiveSchwarzIlu0! & \flag{MPI} \\
+coarse.hpp & \lstinline!SubdomainConstantCoarseCorrection!, \lstinline!MultiplicativeTwoLevelPreconditioner! & \flag{MPI} \\
+multigrid.hpp & \lstinline!AggregationMultigrid! & --- \\
+mpi\_halo.hpp & \lstinline!MpiHaloExchange!, \lstinline!OverlappedDistributedBlockOperator! & \flag{MPI} \\
+petsc\_adapter.hpp & \lstinline!PetscBlockCsrSolver! & \flag{PETSC} \\
+petsc\_coarse.hpp & \lstinline!PetscSubdomainCoarseCorrection! & \flag{PETSC} \\
+specwave\_compat.hpp & \lstinline!SpecWaveSolver!, \lstinline!solve_specwave_native! & --- \\
+owt\_krylov.hpp & Aggregate include of everything above & --- \\
+\bottomrule
+\end{longtable}
+
+\end{document}

@@ -5,3 +5,13 @@
 /CMakeFiles/
 /Testing/
 compile_commands.json
+
+# LaTeX build artifacts (docs/MANUAL.tex is the source; docs/MANUAL.pdf is committed)
+docs/.texbuild/
+docs/*.aux
+docs/*.log
+docs/*.out
+docs/*.toc
+docs/*.fls
+docs/*.fdb_latexmk
+docs/*.synctex.gz
