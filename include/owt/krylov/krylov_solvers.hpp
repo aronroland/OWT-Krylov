@@ -16,6 +16,29 @@ namespace owt::krylov {
 
 namespace detail {
 
+// Sum the Krylov correction before adding it to the base iterate. Repeated
+// axpy into a large float iterate can round away individually small terms,
+// even when their combined correction is representable. Keep compensation in
+// T; this does not change vector precision or allocate another full vector.
+template<std::floating_point T>
+void gmres_update(const BlockVector<T>& base,
+                  std::span<BlockVector<T>> directions,
+                  std::span<const T> coefficients,
+                  BlockVector<T>& output)
+{
+    for (std::size_t i = 0; i < base.owned_size(); ++i) {
+        T sum = 0, compensation = 0;
+        for (std::size_t j = 0; j < coefficients.size(); ++j) {
+            const T term = coefficients[j] * directions[j].data()[i];
+            const T updated = sum + term;
+            compensation += std::abs(sum) >= std::abs(term)
+                ? (sum - updated) + term : (term - updated) + sum;
+            sum = updated;
+        }
+        output.data()[i] = base.data()[i] + (sum + compensation);
+    }
+}
+
 template<class Operator, std::floating_point T>
 void apply_operator(Operator& linear_operator,
                     BlockVector<T>& input,
@@ -308,9 +331,15 @@ template<std::floating_point T,
             }
             if (original_norm_squared < std::numeric_limits<T>::min()
                 || !std::isfinite(norm_squared)
+                || norm_squared <= std::numeric_limits<T>::epsilon()
+                    * original_norm_squared
                 || (norm_squared > T(0)
                     && norm_squared < std::numeric_limits<T>::min())) {
+                // Subtracting projection norms can cancel to zero or become
+                // negative although work is nonzero. Verify the vector norm
+                // before declaring an invariant Arnoldi subspace.
                 h(columns + 1, columns) = detail::norm(reduction, work, result);
+                ++result.arnoldi_norm_verifications;
             } else {
                 h(columns + 1, columns) = std::sqrt(std::max(norm_squared, T(0)));
             }
@@ -383,9 +412,8 @@ template<std::floating_point T,
                     coefficients[row] = value / h(row, row);
                 }
                 if (nonsingular) {
-                    copy_owned(solution, candidate);
-                    for (std::size_t j = 0; j <= columns; ++j)
-                        axpy(coefficients[j], preconditioned_basis[j], candidate);
+                    detail::gmres_update<T>(solution, preconditioned_basis,
+                                            coefficients, candidate);
                     ++result.iterations;
                     if (detail::application_convergence(linear_operator, rhs, candidate,
                                                         options, reduction, result)) {
@@ -427,23 +455,30 @@ template<std::floating_point T,
             }
             coefficients[reverse] = value / h(reverse, reverse);
         }
-        for (std::size_t column = 0; column < columns; ++column) {
-            axpy(coefficients[column], preconditioned_basis[column], solution);
-        }
+        detail::gmres_update<T>(solution, preconditioned_basis,
+                                coefficients, solution);
 
         detail::true_residual(linear_operator, rhs, solution, residual, work, result);
         const T true_norm = detail::norm(reduction, residual, result);
         detail::set_residual_result(result, result.recursive_residual_norm,
                                     true_norm, rhs_norm);
+        if (!std::isfinite(true_norm)) {
+            detail::mark_breakdown(result, BreakdownReason::non_finite_scalar);
+            return result;
+        }
         if (true_norm <= threshold) {
             result.status = SolverStatus::converged;
             return result;
         }
-        if (arnoldi_breakdown) {
+        if (arnoldi_breakdown && !(true_norm < beta)) {
             detail::mark_breakdown(
                 result, BreakdownReason::arnoldi_invariant_subspace);
             return result;
         }
+        // A near-invariant space is not necessarily fatal in finite precision.
+        // If this cycle reduced the checked residual, restart from that actual
+        // residual. A singular projected system or a non-improving breakdown
+        // still fails; the original convergence threshold is never relaxed.
     }
 
     result.status = SolverStatus::maximum_iterations;

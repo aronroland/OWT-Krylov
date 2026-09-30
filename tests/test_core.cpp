@@ -546,7 +546,8 @@ void test_krylov_solvers_on_block_system()
                                     options, jacobi_preconditioner);
     require(gmres_result.converged(), "GMRES failed on block system");
     require(gmres_result.global_reductions
-                <= 2 * gmres_result.iterations + 4,
+                <= 2 * gmres_result.iterations + 4
+                    + gmres_result.arnoldi_norm_verifications,
             "GMRES used more than two normal Arnoldi reductions per iteration");
 
     SolverOptions<double> one_sync_options = options;
@@ -560,6 +561,7 @@ void test_krylov_solvers_on_block_system()
             "one-synchronization GMRES failed on block system");
     require(one_sync_result.global_reductions
                 <= one_sync_result.iterations + 4
+                    + one_sync_result.arnoldi_norm_verifications
                 && one_sync_result.reorthogonalizations == 0,
             "one-synchronization GMRES spent an extra Arnoldi reduction");
 

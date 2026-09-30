@@ -87,3 +87,18 @@ These are algebraic correctness regressions. The adapter fixture supplies explic
 coefficients and a trace callback; the geographic assembly and spectral matvec
 checks exercise production kernels separately. Full field-case coefficient
 generation, boundary classification, accuracy and speed require their own checks.
+
+## GMRES finite-precision regressions
+
+`owt_krylov_gmres_precision` checks near-invariant-subspace restarts, cancellation
+in the projected Arnoldi norm, compensated summation of the iterate correction,
+and nonfinite checked residuals. The restart case also runs with two and four
+MPI ranks and all three orthogonalization policies. Extra norm checks are counted
+in both `global_reductions` and `arnoldi_norm_verifications`.
+
+The test includes Triton's exported 25-node CP2026 cold-front matrix at CFL 40.
+Its strict normalized L2 threshold is `32 * epsilon(float)`; this remains an
+unresolved convergence case. That fixture checks the accuracy of the reported
+true residual and prevents false acceptance, not successful convergence. Passing
+this test is therefore not evidence that the strict CP2026 endpoint run passes.
+Neither the tolerances nor the solution-vector precision were changed.

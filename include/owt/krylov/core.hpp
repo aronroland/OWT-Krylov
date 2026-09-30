@@ -34,7 +34,7 @@ enum class GmresOrthogonalization {
     iterated_classical_gram_schmidt,
     /** One reduction normally, with a second pass after detected norm loss. */
     adaptive_classical_gram_schmidt,
-    /** Exactly one orthogonalization reduction per Arnoldi column. */
+    /** One orthogonalization reduction; verify the norm after cancellation. */
     one_synchronization_classical_gram_schmidt,
 };
 
@@ -124,6 +124,8 @@ struct SolverResult {
     std::size_t preconditioner_applications = 0;
     std::size_t global_reductions = 0;
     std::size_t reorthogonalizations = 0;
+    /** Extra checked norms when the projected Arnoldi norm loses accuracy. */
+    std::size_t arnoldi_norm_verifications = 0;
     T initial_residual_norm = std::numeric_limits<T>::quiet_NaN();
     T recursive_residual_norm = std::numeric_limits<T>::quiet_NaN();
     T true_residual_norm = std::numeric_limits<T>::quiet_NaN();

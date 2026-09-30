@@ -7,6 +7,22 @@ target_compile_options(
 )
 add_test(NAME owt_krylov_core_tests COMMAND owt_krylov_core_tests)
 
+add_executable(owt_krylov_gmres_precision_tests test_gmres_precision.cpp)
+target_link_libraries(owt_krylov_gmres_precision_tests PRIVATE OWT::Krylov)
+target_compile_options(owt_krylov_gmres_precision_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-ffp-contract=off>)
+add_test(NAME owt_krylov_gmres_precision COMMAND owt_krylov_gmres_precision_tests)
+set_tests_properties(owt_krylov_gmres_precision PROPERTIES LABELS contracts TIMEOUT 30)
+if(OWT_KRYLOV_ENABLE_MPI)
+    foreach(ranks IN ITEMS 2 4)
+        add_test(NAME owt_krylov_gmres_precision_${ranks}_ranks
+            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
+                    $<TARGET_FILE:owt_krylov_gmres_precision_tests> --mpi)
+        set_tests_properties(owt_krylov_gmres_precision_${ranks}_ranks
+            PROPERTIES LABELS contracts TIMEOUT 30)
+    endforeach()
+endif()
+
 add_executable(owt_krylov_ilu_apply test_ilu_apply.cpp)
 target_link_libraries(owt_krylov_ilu_apply PRIVATE OWT::Krylov)
 target_compile_options(owt_krylov_ilu_apply PRIVATE
